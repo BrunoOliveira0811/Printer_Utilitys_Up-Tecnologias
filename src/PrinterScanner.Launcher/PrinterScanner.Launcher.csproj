@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <AssemblyName>PrinterScanner</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationIcon>..\PrinterScanner.App\Resources\logo.ico</ApplicationIcon>
+    <!-- Autossuficiente e comprimido: não depende de nenhum runtime instalado -->
+    <PublishTrimmed>true</PublishTrimmed>
+    <TrimMode>full</TrimMode>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <DebugType>none</DebugType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="embedded-app\PrinterScanner.App.exe">
+      <LogicalName>PrinterScanner.App.exe</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+</Project>

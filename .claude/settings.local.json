@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-ChildItem \"c:\\\\Users\\\\Admin\\\\Downloads\\\\PROJETOS\" -Recurse | Where-Object { -not $_.PSIsContainer } | Select-Object FullName | Format-Table -AutoSize)",
+      "PowerShell($logPath = \"$env:APPDATA\\\\PrinterScannerApp\\\\startup-error.log\"; if \\(Test-Path $logPath\\) { Get-Content $logPath -Tail 60 } else { \"Arquivo de log nao encontrado.\" })",
+      "PowerShell(dotnet --version)",
+      "PowerShell(dotnet publish \"c:\\\\Users\\\\Admin\\\\Downloads\\\\PROJETOS\\\\src\\\\PrinterScanner.App\\\\PrinterScanner.App.csproj\" -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true /p:EnableCompressionInSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true /p:DebugType=None /p:DebugSymbols=false /p:PublishReadyToRun=false /p:PublishTrimmed=false /p:PublishDir=\"c:\\\\Users\\\\Admin\\\\Downloads\\\\PROJETOS\\\\publish\\\\win-x64-portable\\\\\")",
+      "PowerShell(Get-ChildItem \"c:\\\\Users\\\\Admin\\\\Downloads\\\\PROJETOS\\\\publish\\\\win-x64-portable\\\\\" | Select-Object Name, @{N=\"Tamanho \\(MB\\)\";E={[math]::Round\\($_.Length/1MB,1\\)}})",
+      "PowerShell(Stop-Process -Name \"PrinterScanner.App\" -Force -ErrorAction SilentlyContinue)",
+      "PowerShell(Test-NetConnection 192.168.100.220 -Port 9100)",
+      "PowerShell(pktmon filter add -p 9100 2>&1)",
+      "PowerShell(pktmon start --capture --log-mode circular -s 10 2>&1)",
+      "PowerShell(Start-Process powershell -ArgumentList \"-NoExit -File `\"C:\\\\Users\\\\Admin\\\\AppData\\\\Local\\\\Temp\\\\elgin_proxy2.ps1`\"\" -WindowStyle Normal)",
+      "PowerShell(Test-NetConnection 127.0.0.1 -Port 9100 -InformationLevel Quiet)",
+      "PowerShell(Stop-Process -Name powershell -ErrorAction SilentlyContinue)",
+      "PowerShell(netstat -ano)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:plataforma-e1.leonwebhost.com)",
+      "PowerShell(Get-Item \"C:\\\\Users\\\\Admin\\\\Downloads\\\\PROJETOS\\\\src\\\\PrinterScanner.App\\\\publish\\\\win-x64-portable\\\\PrinterScanner.App.exe\" | Select-Object Name, @{N='MB';E={[math]::Round\\($_.Length/1MB,1\\)}}, LastWriteTime)",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\Admin\\\\Downloads\\\\PROJETOS\\\\src\\\\PrinterScanner.App\\\\publish\\\\win-x64-portable\" | Select-Object Name, @{N='MB';E={[math]::Round\\($_.Length/1MB,1\\)}})",
+      "PowerShell(New-Item -ItemType Directory -Force \"C:\\\\Users\\\\Admin\\\\Downloads\\\\PROJETOS\\\\src\\\\PrinterScanner.Launcher\")",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\Admin\\\\Downloads\\\\PROJETOS\\\\src\\\\PrinterScanner.App\\\\publish\\\\win-x64-portable\" | Select-Object Name, @{N='MB';E={[math]::Round\\($_.Length/1MB,1\\)}} | Sort-Object MB -Descending)",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\Admin\\\\Downloads\\\\DRIVERS\" -Recurse | Select-Object FullName, @{N='MB';E={[math]::Round\\($_.Length/1MB,2\\)}})",
+      "PowerShell(New-Item -ItemType Directory -Force \"C:\\\\Users\\\\Admin\\\\Downloads\\\\PROJETOS\\\\src\\\\PrinterScanner.App\\\\Resources\\\\Themes\")",
+      "PowerShell(git clone https://github.com/rikosintie/Printer-DHCP \"C:\\\\Users\\\\Admin\\\\Downloads\\\\PROJETOS\\\\Printer-DHCP\" 2>&1)",
+      "WebFetch(domain:api.github.com)"
+    ]
+  }
+}

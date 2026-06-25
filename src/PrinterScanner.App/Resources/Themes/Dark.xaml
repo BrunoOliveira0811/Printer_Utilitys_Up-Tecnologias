@@ -1,0 +1,40 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <SolidColorBrush x:Key="AppBg"               Color="#0F1117"/>
+    <SolidColorBrush x:Key="PanelBg"             Color="#161B25"/>
+    <SolidColorBrush x:Key="PanelBorder"         Color="#2C3347"/>
+    <SolidColorBrush x:Key="CardBg"              Color="#1C2133"/>
+    <SolidColorBrush x:Key="ToolbarBg"           Color="#161B25"/>
+    <SolidColorBrush x:Key="TextPrimary"         Color="#E2E8F0"/>
+    <SolidColorBrush x:Key="TextSecondary"       Color="#7A8A9A"/>
+    <SolidColorBrush x:Key="TextLabel"           Color="#7A8A9A"/>
+    <SolidColorBrush x:Key="TextSectionHeader"   Color="#C8D3DC"/>
+    <SolidColorBrush x:Key="Accent"              Color="#4E9EE8"/>
+    <SolidColorBrush x:Key="ButtonBg"            Color="#232B3E"/>
+    <SolidColorBrush x:Key="ButtonBorder"        Color="#374155"/>
+    <SolidColorBrush x:Key="ButtonFg"            Color="#CDD6E0"/>
+    <SolidColorBrush x:Key="PrimaryButtonBg"     Color="#2B6CB8"/>
+    <SolidColorBrush x:Key="PrimaryButtonBorder" Color="#245FA8"/>
+    <SolidColorBrush x:Key="InputBorder"         Color="#374155"/>
+    <SolidColorBrush x:Key="InputBg"             Color="#1C2133"/>
+    <SolidColorBrush x:Key="InputFg"             Color="#E2E8F0"/>
+    <SolidColorBrush x:Key="SeparatorBrush"      Color="#2C3347"/>
+    <SolidColorBrush x:Key="GridRowBg"           Color="#1C2133"/>
+    <SolidColorBrush x:Key="GridAltRowBg"        Color="#212840"/>
+    <SolidColorBrush x:Key="GridHeaderBg"        Color="#161B25"/>
+    <SolidColorBrush x:Key="GridHeaderFg"        Color="#C8D3DC"/>
+    <SolidColorBrush x:Key="GridHeaderBorder"    Color="#2C3347"/>
+    <SolidColorBrush x:Key="GridHLine"           Color="#2C3347"/>
+    <SolidColorBrush x:Key="GridVLine"           Color="#232B3E"/>
+    <SolidColorBrush x:Key="StatusBg"            Color="#161B25"/>
+    <SolidColorBrush x:Key="StatusBorder"        Color="#2C3347"/>
+    <SolidColorBrush x:Key="StatusFg"            Color="#9AACB8"/>
+    <SolidColorBrush x:Key="FooterBg"            Color="#161B25"/>
+    <SolidColorBrush x:Key="FooterFg"            Color="#7A8A9A"/>
+    <SolidColorBrush x:Key="ResultsHeaderBg"     Color="#161B25"/>
+    <SolidColorBrush x:Key="ResultsHeaderBorder" Color="#2C3347"/>
+    <SolidColorBrush x:Key="ResultsHeaderFg"     Color="#C8D3DC"/>
+    <SolidColorBrush x:Key="ResultsHeaderSub"    Color="#7A8A9A"/>
+
+</ResourceDictionary>

@@ -1,0 +1,523 @@
+<Window x:Class="PrinterScanner.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="Utilitario de Impressoras - UP Tecnologias"
+        Icon="Resources/logo.png"
+        Height="800"
+        Width="1280"
+        MinWidth="1080"
+        MinHeight="760"
+        Background="{DynamicResource AppBg}"
+        Loaded="Window_Loaded">
+
+  <Window.Resources>
+
+    <Style x:Key="ToolbarButtonStyle" TargetType="Button">
+      <Setter Property="Background"     Value="{DynamicResource ButtonBg}" />
+      <Setter Property="BorderBrush"    Value="{DynamicResource ButtonBorder}" />
+      <Setter Property="Foreground"     Value="{DynamicResource ButtonFg}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Padding"        Value="14,7" />
+      <Setter Property="Margin"         Value="0,0,8,0" />
+      <Setter Property="MinWidth"       Value="108" />
+      <Style.Triggers>
+        <Trigger Property="IsEnabled" Value="False">
+          <Setter Property="Opacity" Value="0.38"/>
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+
+    <Style x:Key="PrimaryToolbarButtonStyle" TargetType="Button" BasedOn="{StaticResource ToolbarButtonStyle}">
+      <Setter Property="Background"  Value="{DynamicResource PrimaryButtonBg}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource PrimaryButtonBorder}" />
+      <Setter Property="Foreground"  Value="White" />
+      <Setter Property="FontWeight"  Value="SemiBold" />
+    </Style>
+
+    <!-- ToggleButton with active highlight -->
+    <Style x:Key="ToggleToolbarStyle" TargetType="ToggleButton">
+      <Setter Property="Background"      Value="{DynamicResource ButtonBg}" />
+      <Setter Property="BorderBrush"     Value="{DynamicResource ButtonBorder}" />
+      <Setter Property="Foreground"      Value="{DynamicResource ButtonFg}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Padding"         Value="14,7" />
+      <Setter Property="Margin"          Value="0,0,8,0" />
+      <Setter Property="MinWidth"        Value="120" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ToggleButton">
+            <Border Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    Padding="{TemplateBinding Padding}">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsChecked" Value="True">
+                <Setter Property="Background" Value="{DynamicResource Accent}" />
+                <Setter Property="Foreground"  Value="White" />
+              </Trigger>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Opacity" Value="0.88" />
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="0.38" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <!-- TextBox com template próprio para respeitar cores do tema -->
+    <Style TargetType="TextBox">
+      <Setter Property="Height"                   Value="30" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Padding"                  Value="8,2" />
+      <Setter Property="BorderBrush"              Value="{DynamicResource InputBorder}" />
+      <Setter Property="BorderThickness"          Value="1" />
+      <Setter Property="Background"               Value="{DynamicResource InputBg}" />
+      <Setter Property="Foreground"               Value="{DynamicResource InputFg}" />
+      <Setter Property="CaretBrush"               Value="{DynamicResource InputFg}" />
+      <Setter Property="SelectionBrush"           Value="{DynamicResource Accent}" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="TextBox">
+            <Border Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}">
+              <ScrollViewer x:Name="PART_ContentHost"
+                            Margin="{TemplateBinding Padding}"
+                            VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="0.38" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <!-- ComboBox com template próprio para respeitar cores do tema -->
+    <Style TargetType="ComboBox">
+      <Setter Property="Height"          Value="30" />
+      <Setter Property="Padding"         Value="8,0" />
+      <Setter Property="BorderBrush"     Value="{DynamicResource InputBorder}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Background"      Value="{DynamicResource InputBg}" />
+      <Setter Property="Foreground"      Value="{DynamicResource InputFg}" />
+      <Setter Property="SnapsToDevicePixels" Value="True" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ComboBox">
+            <Grid>
+              <Border x:Name="MainBorder"
+                      Background="{TemplateBinding Background}"
+                      BorderBrush="{TemplateBinding BorderBrush}"
+                      BorderThickness="{TemplateBinding BorderThickness}">
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="22" />
+                  </Grid.ColumnDefinitions>
+
+                  <ContentPresenter Grid.Column="0"
+                                    Name="ContentSite"
+                                    Margin="{TemplateBinding Padding}"
+                                    VerticalAlignment="Center"
+                                    Content="{TemplateBinding SelectionBoxItem}"
+                                    ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                    IsHitTestVisible="False" />
+
+                  <Path Grid.Column="1"
+                        Data="M 0 0 L 5 5 L 10 0 Z"
+                        Fill="{DynamicResource TextLabel}"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        IsHitTestVisible="False" />
+
+                  <!-- Botão invisível que captura o clique -->
+                  <ToggleButton Grid.ColumnSpan="2"
+                                Focusable="False"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                ClickMode="Press" />
+                </Grid>
+              </Border>
+
+              <Popup x:Name="Popup"
+                     Placement="Bottom"
+                     IsOpen="{TemplateBinding IsDropDownOpen}"
+                     AllowsTransparency="True"
+                     Focusable="False"
+                     PopupAnimation="Slide">
+                <Grid MinWidth="{TemplateBinding ActualWidth}"
+                      MaxHeight="{TemplateBinding MaxDropDownHeight}"
+                      SnapsToDevicePixels="True">
+                  <Border Background="{DynamicResource InputBg}"
+                          BorderBrush="{DynamicResource InputBorder}"
+                          BorderThickness="1">
+                    <ScrollViewer SnapsToDevicePixels="True">
+                      <StackPanel IsItemsHost="True"
+                                  KeyboardNavigation.DirectionalNavigation="Contained" />
+                    </ScrollViewer>
+                  </Border>
+                </Grid>
+              </Popup>
+            </Grid>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="0.38" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style TargetType="ComboBoxItem">
+      <Setter Property="Foreground" Value="{DynamicResource InputFg}" />
+      <Setter Property="Background" Value="{DynamicResource InputBg}" />
+      <Setter Property="Padding"    Value="8,5" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ComboBoxItem">
+            <Border x:Name="Bd"
+                    Background="{TemplateBinding Background}"
+                    Padding="{TemplateBinding Padding}">
+              <ContentPresenter />
+            </Border>
+            <ControlTemplate.Triggers>
+              <MultiTrigger>
+                <MultiTrigger.Conditions>
+                  <Condition Property="IsMouseOver" Value="True" />
+                </MultiTrigger.Conditions>
+                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Accent}" />
+                <Setter Property="Foreground" Value="White" />
+              </MultiTrigger>
+              <Trigger Property="IsSelected" Value="True">
+                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Accent}" />
+                <Setter Property="Foreground" Value="White" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+  </Window.Resources>
+
+  <Grid Margin="12">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <!-- Header -->
+    <Border Grid.Row="0"
+            Padding="12,10"
+            Background="{DynamicResource PanelBg}"
+            BorderBrush="{DynamicResource PanelBorder}"
+            BorderThickness="1">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <Image Width="48" Height="48" VerticalAlignment="Center"
+               Source="pack://application:,,,/Resources/logo.png"
+               RenderOptions.BitmapScalingMode="HighQuality" />
+
+        <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
+          <TextBlock FontSize="18" FontWeight="SemiBold"
+                     Foreground="{DynamicResource TextPrimary}"
+                     Text="Utilitario de Impressoras - UP Tecnologias" />
+          <TextBlock Margin="0,2,0,0"
+                     Foreground="{DynamicResource TextSecondary}"
+                     Text="Descoberta automatica de impressoras na rede com identificacao por SNMP e portas. v2.0" />
+        </StackPanel>
+
+        <Border Grid.Column="2"
+                Padding="10,6"
+                Background="{DynamicResource CardBg}"
+                BorderBrush="{DynamicResource PanelBorder}"
+                BorderThickness="1"
+                VerticalAlignment="Center">
+          <StackPanel Orientation="Horizontal">
+            <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource TextLabel}" Text="Progresso:" />
+            <TextBlock Margin="6,0,0,0" Foreground="{DynamicResource Accent}" Text="{Binding ProgressText}" />
+          </StackPanel>
+        </Border>
+      </Grid>
+    </Border>
+
+    <!-- Toolbar -->
+    <Border Grid.Row="1"
+            Margin="0,8,0,0"
+            Padding="10"
+            Background="{DynamicResource ToolbarBg}"
+            BorderBrush="{DynamicResource PanelBorder}"
+            BorderThickness="1">
+      <DockPanel LastChildFill="False">
+
+        <Button Content="Iniciar"
+                Command="{Binding StartScanCommand}"
+                Style="{StaticResource PrimaryToolbarButtonStyle}"
+                DockPanel.Dock="Left" />
+        <Button Content="Parar"
+                Command="{Binding CancelScanCommand}"
+                Style="{StaticResource ToolbarButtonStyle}"
+                DockPanel.Dock="Left" />
+        <Button Content="Limpar"
+                Command="{Binding ClearResultsCommand}"
+                Style="{StaticResource ToolbarButtonStyle}"
+                DockPanel.Dock="Left" />
+        <Button Content="Alterar IP"
+                Command="{Binding ChangeIpCommand}"
+                Style="{StaticResource ToolbarButtonStyle}"
+                DockPanel.Dock="Left" />
+        <Button Content="Instalar Driver"
+                Command="{Binding InstallDriverCommand}"
+                Style="{StaticResource ToolbarButtonStyle}"
+                DockPanel.Dock="Left" />
+        <Button Content="Controle de Impressoras"
+                Command="{Binding OpenPrinterControlCommand}"
+                Style="{StaticResource ToolbarButtonStyle}"
+                DockPanel.Dock="Left" />
+        <Button Content="Salvar Relatorio"
+                Command="{Binding SaveReportCommand}"
+                Style="{StaticResource ToolbarButtonStyle}"
+                DockPanel.Dock="Left"
+                ToolTip="Salva os resultados da varredura em arquivo .txt" />
+
+        <!-- Dark mode toggle (right side) -->
+        <ToggleButton IsChecked="{Binding IsDarkMode, Mode=OneWay}"
+                      Command="{Binding ToggleDarkModeCommand}"
+                      Content="{Binding DarkModeButtonText}"
+                      Style="{StaticResource ToggleToolbarStyle}"
+                      DockPanel.Dock="Right"
+                      ToolTip="Alternar entre modo claro e escuro" />
+
+        <Border Width="1" Height="26" Margin="4,0,10,0"
+                Background="{DynamicResource SeparatorBrush}"
+                DockPanel.Dock="Left" />
+        <TextBlock Margin="0,0,10,0"
+                   VerticalAlignment="Center"
+                   FontWeight="SemiBold"
+                   Foreground="{DynamicResource TextLabel}"
+                   Text="Filtro rapido:"
+                   DockPanel.Dock="Left" />
+        <TextBox Width="260"
+                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                 ToolTip="Filtra IP, nome, MAC e descricao"
+                 DockPanel.Dock="Left" />
+      </DockPanel>
+    </Border>
+
+    <!-- Scan config -->
+    <Border Grid.Row="2"
+            Margin="0,8,0,8"
+            Padding="12"
+            Background="{DynamicResource CardBg}"
+            BorderBrush="{DynamicResource PanelBorder}"
+            BorderThickness="1">
+      <Grid>
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="170" />
+          <ColumnDefinition Width="190" />
+          <ColumnDefinition Width="160" />
+          <ColumnDefinition Width="160" />
+          <ColumnDefinition Width="170" />
+          <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <TextBlock Grid.Row="0" Grid.ColumnSpan="6"
+                   FontSize="13" FontWeight="SemiBold"
+                   Foreground="{DynamicResource TextSectionHeader}"
+                   Text="Destino da varredura" />
+
+        <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,10,10,4" Foreground="{DynamicResource TextLabel}" Text="Modo" />
+        <TextBlock Grid.Row="1" Grid.Column="1" Margin="0,10,10,4" Foreground="{DynamicResource TextLabel}" Text="IP inicial" />
+        <TextBlock Grid.Row="1" Grid.Column="2" Margin="0,10,10,4" Foreground="{DynamicResource TextLabel}" Text="IP final" />
+        <TextBlock Grid.Row="1" Grid.Column="3" Margin="0,10,10,4" Foreground="{DynamicResource TextLabel}" Text="CIDR" />
+        <TextBlock Grid.Row="1" Grid.Column="4" Margin="0,10,10,4" Foreground="{DynamicResource TextLabel}" Text="SNMP" />
+        <TextBlock Grid.Row="1" Grid.Column="5" Margin="0,10,0,4"  Foreground="{DynamicResource TextLabel}" Text="Status" />
+
+        <ComboBox Grid.Row="2" Grid.Column="0" Margin="0,0,10,0"
+                  ItemsSource="{Binding ScanModes}"
+                  SelectedItem="{Binding SelectedScanMode}" />
+        <TextBox  Grid.Row="2" Grid.Column="1" Margin="0,0,10,0"
+                  Text="{Binding StartIp, UpdateSourceTrigger=PropertyChanged}"
+                  ToolTip="IP inicial. Ex: 192.168.0.10" />
+        <TextBox  Grid.Row="2" Grid.Column="2" Margin="0,0,10,0"
+                  Text="{Binding EndIp, UpdateSourceTrigger=PropertyChanged}"
+                  ToolTip="IP final. Ex: 192.168.0.250" />
+        <TextBox  Grid.Row="2" Grid.Column="3" Margin="0,0,10,0"
+                  Text="{Binding CidrNotation, UpdateSourceTrigger=PropertyChanged}"
+                  ToolTip="Ex: 192.168.0.0/24" />
+        <TextBox  Grid.Row="2" Grid.Column="4" Margin="0,0,10,0"
+                  Text="{Binding SnmpCommunitiesText, UpdateSourceTrigger=PropertyChanged}"
+                  ToolTip="Separe varias comunidades por ; ou ," />
+        <Border   Grid.Row="2" Grid.Column="5"
+                  Padding="10,6"
+                  Background="{DynamicResource StatusBg}"
+                  BorderBrush="{DynamicResource StatusBorder}"
+                  BorderThickness="1">
+          <TextBlock VerticalAlignment="Center"
+                     Foreground="{DynamicResource StatusFg}"
+                     Text="{Binding StatusMessage}" />
+        </Border>
+
+        <!-- Row 3: interface selector -->
+        <TextBlock Grid.Row="3" Grid.Column="0" Margin="0,10,10,0"
+                   Foreground="{DynamicResource TextLabel}" Text="Interface de rede" />
+        <ComboBox  Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="3" Margin="0,8,10,0"
+                   ItemsSource="{Binding AvailableInterfaces}"
+                   SelectedItem="{Binding SelectedNetworkInterface}"
+                   DisplayMemberPath="DisplayName"
+                   ToolTip="Selecione a interface para varredura de subrede. Util quando ha VPN ou multiplas redes ativas." />
+        <Button    Grid.Row="3" Grid.Column="4" Margin="0,8,10,0" Height="30"
+                   Content="Atualizar redes"
+                   Command="{Binding RefreshInterfacesCommand}"
+                   Style="{StaticResource ToolbarButtonStyle}" />
+      </Grid>
+    </Border>
+
+    <!-- Results -->
+    <Border Grid.Row="3"
+            Background="{DynamicResource CardBg}"
+            BorderBrush="{DynamicResource PanelBorder}"
+            BorderThickness="1">
+      <Grid>
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0"
+                Padding="10,8"
+                Background="{DynamicResource ResultsHeaderBg}"
+                BorderBrush="{DynamicResource ResultsHeaderBorder}"
+                BorderThickness="0,0,0,1">
+          <DockPanel>
+            <TextBlock FontWeight="SemiBold"
+                       Foreground="{DynamicResource ResultsHeaderFg}"
+                       Text="Resultados da descoberta" />
+            <TextBlock DockPanel.Dock="Right"
+                       Foreground="{DynamicResource ResultsHeaderSub}"
+                       Text="Ordene pelas colunas para navegar como em um scanner de IP. Clique duplo no nome para editar e salvar." />
+          </DockPanel>
+        </Border>
+
+        <DataGrid Grid.Row="1"
+                  AutoGenerateColumns="False"
+                  CanUserAddRows="False"
+                  CanUserDeleteRows="False"
+                  CanUserSortColumns="True"
+                  IsReadOnly="False"
+                  HeadersVisibility="Column"
+                  GridLinesVisibility="Horizontal"
+                  BorderThickness="0"
+                  Background="{DynamicResource CardBg}"
+                  Foreground="{DynamicResource TextPrimary}"
+                  AlternatingRowBackground="{DynamicResource GridAltRowBg}"
+                  RowBackground="{DynamicResource GridRowBg}"
+                  HorizontalGridLinesBrush="{DynamicResource GridHLine}"
+                  VerticalGridLinesBrush="{DynamicResource GridVLine}"
+                  ItemsSource="{Binding DevicesView}"
+                  SelectedItem="{Binding SelectedDevice}">
+          <DataGrid.RowStyle>
+            <Style TargetType="DataGridRow">
+              <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
+            </Style>
+          </DataGrid.RowStyle>
+          <DataGrid.ColumnHeaderStyle>
+            <Style TargetType="DataGridColumnHeader">
+              <Setter Property="Background"       Value="{DynamicResource GridHeaderBg}" />
+              <Setter Property="Foreground"       Value="{DynamicResource GridHeaderFg}" />
+              <Setter Property="FontWeight"       Value="SemiBold" />
+              <Setter Property="BorderBrush"      Value="{DynamicResource GridHeaderBorder}" />
+              <Setter Property="BorderThickness"  Value="0,0,1,1" />
+              <Setter Property="Padding"          Value="8,6" />
+            </Style>
+          </DataGrid.ColumnHeaderStyle>
+          <DataGrid.Columns>
+            <DataGridTextColumn Binding="{Binding IpAddress}"    Header="IP"                              Width="110" IsReadOnly="True" />
+            <DataGridTextColumn Binding="{Binding DeviceName, UpdateSourceTrigger=PropertyChanged}"
+                                Header="Nome (duplo clique para editar)" Width="220" IsReadOnly="False">
+              <DataGridTextColumn.ElementStyle>
+                <Style TargetType="TextBlock">
+                  <Setter Property="ToolTip"     Value="Duplo clique para editar o nome/modelo" />
+                  <Setter Property="Foreground"  Value="{DynamicResource TextPrimary}" />
+                </Style>
+              </DataGridTextColumn.ElementStyle>
+              <DataGridTextColumn.EditingElementStyle>
+                <Style TargetType="TextBox">
+                  <Setter Property="Background"  Value="{DynamicResource InputBg}" />
+                  <Setter Property="Foreground"  Value="{DynamicResource InputFg}" />
+                  <Setter Property="BorderBrush" Value="#F9A825" />
+                </Style>
+              </DataGridTextColumn.EditingElementStyle>
+            </DataGridTextColumn>
+            <DataGridTextColumn Binding="{Binding MacAddress}"        Header="MAC"      Width="150" IsReadOnly="True" />
+            <DataGridTextColumn Binding="{Binding DisplaySubnetMask}" Header="Mascara"  Width="110" IsReadOnly="True" />
+            <DataGridTextColumn Binding="{Binding DisplayGateway}"    Header="Gateway"  Width="110" IsReadOnly="True" />
+            <DataGridTextColumn Binding="{Binding DhcpStatus}"        Header="DHCP"     Width="120" IsReadOnly="True" />
+            <DataGridCheckBoxColumn Binding="{Binding SnmpResponded}" Header="SNMP"     Width="70"  IsReadOnly="True" />
+            <DataGridCheckBoxColumn Binding="{Binding Port9100Open}"  Header="9100"     Width="65"  IsReadOnly="True" />
+            <DataGridCheckBoxColumn Binding="{Binding Port515Open}"   Header="515"      Width="65"  IsReadOnly="True" />
+            <DataGridCheckBoxColumn Binding="{Binding Port631Open}"   Header="631"      Width="65"  IsReadOnly="True" />
+            <DataGridTextColumn Binding="{Binding SysDescription}"    Header="Descricao do dispositivo" Width="*" IsReadOnly="True" />
+          </DataGrid.Columns>
+        </DataGrid>
+      </Grid>
+    </Border>
+
+    <!-- Footer -->
+    <Border Grid.Row="4"
+            Margin="0,8,0,0"
+            Padding="10,8"
+            Background="{DynamicResource FooterBg}"
+            BorderBrush="{DynamicResource PanelBorder}"
+            BorderThickness="1">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="280" />
+          <ColumnDefinition Width="70" />
+        </Grid.ColumnDefinitions>
+
+        <TextBlock Grid.Column="0" VerticalAlignment="Center"
+                   Foreground="{DynamicResource FooterFg}"
+                   Text="SNMP e portas de impressao sao usados em conjunto para identificar dispositivos compativeis." />
+
+        <ProgressBar Grid.Column="1" Height="16" Margin="10,0,10,0"
+                     Minimum="0" Maximum="100"
+                     Value="{Binding ProgressValue, Mode=OneWay}" />
+
+        <TextBlock Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right"
+                   FontWeight="SemiBold"
+                   Foreground="{DynamicResource Accent}"
+                   Text="{Binding ProgressText}" />
+      </Grid>
+    </Border>
+
+  </Grid>
+</Window>

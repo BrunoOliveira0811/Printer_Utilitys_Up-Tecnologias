@@ -1,0 +1,6 @@
+C:\Users\Admin\Downloads\PROJETOS\src\PrinterScanner.App\publish\win-x64-portable\PrinterScanner.App.exe
+C:\Users\Admin\Downloads\PROJETOS\src\PrinterScanner.App\publish\win-x64-portable\PrinterScanner.App.dll
+C:\Users\Admin\Downloads\PROJETOS\src\PrinterScanner.App\publish\win-x64-portable\PrinterScanner.App.deps.json
+C:\Users\Admin\Downloads\PROJETOS\src\PrinterScanner.App\publish\win-x64-portable\PrinterScanner.App.runtimeconfig.json
+C:\Users\Admin\Downloads\PROJETOS\src\PrinterScanner.App\publish\win-x64-portable\PrinterScanner.App.pdb
+C:\Users\Admin\Downloads\PROJETOS\src\PrinterScanner.App\publish\win-x64-portable\SharpSnmpLib.dll
