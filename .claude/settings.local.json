@@ -24,7 +24,13 @@
       "PowerShell(Get-ChildItem \"C:\\\\Users\\\\Admin\\\\Downloads\\\\DRIVERS\" -Recurse | Select-Object FullName, @{N='MB';E={[math]::Round\\($_.Length/1MB,2\\)}})",
       "PowerShell(New-Item -ItemType Directory -Force \"C:\\\\Users\\\\Admin\\\\Downloads\\\\PROJETOS\\\\src\\\\PrinterScanner.App\\\\Resources\\\\Themes\")",
       "PowerShell(git clone https://github.com/rikosintie/Printer-DHCP \"C:\\\\Users\\\\Admin\\\\Downloads\\\\PROJETOS\\\\Printer-DHCP\" 2>&1)",
-      "WebFetch(domain:api.github.com)"
+      "WebFetch(domain:api.github.com)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(ls \"C:/Users/Admin/Downloads/UTILITÁRIO DE IMPRESSORAS/\" 2>/dev/null || echo \"Pasta não encontrada\")",
+      "Read(//c/Users/Admin/Downloads/UTILITÁRIO DE IMPRESSORAS/**)",
+      "Bash(git rm *)",
+      "Bash(git add *)"
     ]
   }
 }
