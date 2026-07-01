@@ -4,7 +4,6 @@ using System.IO;
 using System.Text;
 using System.Windows;
 using System.Windows.Data;
-using Microsoft.Win32;
 using PrinterScanner.App.Infrastructure;
 using PrinterScanner.App.Models;
 using PrinterScanner.App.Services;
@@ -557,14 +556,8 @@ public sealed class MainViewModel : ObservableObject
 
     private async Task SaveReportAsync()
     {
-        var dialog = new SaveFileDialog
-        {
-            Title    = "Salvar relatorio de varredura",
-            Filter   = "Arquivo de texto (*.txt)|*.txt",
-            FileName = $"impressoras_{DateTime.Now:yyyy-MM-dd_HH-mm}.txt"
-        };
-
-        if (dialog.ShowDialog() != true) return;
+        var fileName = $"impressoras_{DateTime.Now:yyyy-MM-dd_HH-mm}.txt";
+        var filePath = Path.Combine(@"C:\", fileName);
 
         var sb = new StringBuilder();
         sb.AppendLine("RELATORIO DE VARREDURA DE IMPRESSORAS");
@@ -596,8 +589,8 @@ public sealed class MainViewModel : ObservableObject
             sb.AppendLine();
         }
 
-        await File.WriteAllTextAsync(dialog.FileName, sb.ToString(), Encoding.UTF8);
-        StatusMessage = $"Relatorio salvo: {dialog.FileName}";
+        await File.WriteAllTextAsync(filePath, sb.ToString(), Encoding.UTF8);
+        StatusMessage = $"Relatorio salvo: {filePath}";
     }
 
     private static string Clip(string s, int max) => s.Length <= max ? s : s[..max];
