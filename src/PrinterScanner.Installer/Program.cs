@@ -228,7 +228,7 @@ static bool TryInstallViaWinget()
         {
             FileName  = "powershell.exe",
             Arguments = "-NoProfile -ExecutionPolicy Bypass -Command " +
-                        "\"winget install Microsoft.DotNet.DesktopRuntime.8 " +
+                        "\"winget install Microsoft.DotNet.Runtime.8 " +
                         "--accept-source-agreements --accept-package-agreements --silent\"",
             UseShellExecute  = false,
             CreateNoWindow   = true,

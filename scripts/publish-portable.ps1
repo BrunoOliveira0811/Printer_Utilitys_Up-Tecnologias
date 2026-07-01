@@ -14,7 +14,12 @@ $UtilitarioDir = [System.IO.Path]::Combine([System.Environment]::GetFolderPath("
 
 $dotnet = Get-Command dotnet -ErrorAction SilentlyContinue
 if (-not $dotnet) {
-    throw "O SDK do .NET 8 nao foi encontrado no PATH. Instale o SDK e execute este script novamente."
+    Write-Host "dotnet SDK nao encontrado. Instalando via winget..."
+    winget install Microsoft.DotNet.SDK.8 --accept-source-agreements --accept-package-agreements --silent
+    $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" +
+                [System.Environment]::GetEnvironmentVariable("Path","User")
+    $dotnet = Get-Command dotnet -ErrorAction SilentlyContinue
+    if (-not $dotnet) { throw "Nao foi possivel localizar o dotnet SDK apos a instalacao. Reinicie o terminal e tente novamente." }
 }
 
 # Etapa 1: publicar o WPF App como framework-dependent (pequeno, ~2-3MB)
@@ -27,7 +32,7 @@ Write-Host "Etapa 1/2: publicando PrinterScanner.App (framework-dependent)..."
     /p:DebugType=None `
     /p:DebugSymbols=false `
     /p:PublishReadyToRun=false `
-    /p:PublishDir="$EmbeddedDir\"
+    ("/p:PublishDir=" + $EmbeddedDir)
 
 if ($LASTEXITCODE -ne 0) { throw "Falha ao publicar PrinterScanner.App (codigo $LASTEXITCODE)" }
 
@@ -51,7 +56,7 @@ Write-Host "Etapa 2/2: publicando PrinterScanner.Launcher (self-contained + trim
     /p:DebugType=None `
     /p:DebugSymbols=false `
     /p:PublishReadyToRun=false `
-    /p:PublishDir="$PublishDir\"
+    ("/p:PublishDir=" + $PublishDir)
 
 if ($LASTEXITCODE -ne 0) { throw "Falha ao publicar PrinterScanner.Launcher (codigo $LASTEXITCODE)" }
 
