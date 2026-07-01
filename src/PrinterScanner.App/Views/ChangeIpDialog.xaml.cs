@@ -17,17 +17,18 @@ public partial class ChangeIpDialog : Window
     private async void Apply_Click(object sender, RoutedEventArgs e)
     {
         var success = await vm.ApplyAsync();
-        if (success) DialogResult = true;
+        if (success && IsVisible) DialogResult = true;
     }
 
     private void Cancel_Click(object sender, RoutedEventArgs e)
     {
-        if (!vm.IsBusy) DialogResult = false;
+        vm.RequestCancel();
+        DialogResult = false;
     }
 
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
     {
-        if (vm.IsBusy) e.Cancel = true;
+        vm.RequestCancel();
         base.OnClosing(e);
     }
 }

@@ -5,7 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <AssemblyName>PrinterScanner.App</AssemblyName>
+    <AssemblyName>PrinterScanner</AssemblyName>
     <RootNamespace>PrinterScanner.App</RootNamespace>
     <LangVersion>latest</LangVersion>
     <Platforms>AnyCPU;x64</Platforms>

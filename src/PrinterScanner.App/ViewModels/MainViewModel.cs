@@ -20,6 +20,7 @@ public sealed class MainViewModel : ObservableObject
     private readonly FileLogService logService;
     private readonly PrinterIpService printerIpService;
     private readonly DriverService driverService;
+    private readonly UtilitariosService utilitariosService;
     private readonly RelayCommand startScanCommand;
     private readonly RelayCommand cancelScanCommand;
     private readonly RelayCommand clearResultsCommand;
@@ -27,6 +28,7 @@ public sealed class MainViewModel : ObservableObject
     private readonly RelayCommand installDriverCommand;
     private readonly RelayCommand refreshInterfacesCommand;
     private readonly RelayCommand openPrinterControlCommand;
+    private readonly RelayCommand openUtilitariosCommand;
     private readonly RelayCommand saveReportCommand;
     private readonly RelayCommand toggleDarkModeCommand;
     private readonly DeviceNameService deviceNameService;
@@ -57,7 +59,8 @@ public sealed class MainViewModel : ObservableObject
         PrinterIpService printerIpService,
         DriverService driverService,
         DeviceNameService deviceNameService,
-        PrinterWindowsService printerWindowsService)
+        PrinterWindowsService printerWindowsService,
+        UtilitariosService utilitariosService)
     {
         this.settingsService = settingsService;
         this.ipRangeService = ipRangeService;
@@ -67,6 +70,7 @@ public sealed class MainViewModel : ObservableObject
         this.driverService         = driverService;
         this.deviceNameService     = deviceNameService;
         this.printerWindowsService = printerWindowsService;
+        this.utilitariosService    = utilitariosService;
 
         DevicesView = CollectionViewSource.GetDefaultView(devices);
         DevicesView.Filter = FilterDevice;
@@ -78,6 +82,7 @@ public sealed class MainViewModel : ObservableObject
         installDriverCommand     = new RelayCommand(_ => _ = InstallDriverAsync(), _ => CanInstallDriver());
         refreshInterfacesCommand    = new RelayCommand(_ => LoadInterfaces(), _ => !IsScanning);
         openPrinterControlCommand   = new RelayCommand(_ => OpenPrinterControl());
+        openUtilitariosCommand      = new RelayCommand(_ => OpenUtilitarios());
         saveReportCommand           = new RelayCommand(_ => _ = SaveReportAsync(), _ => devices.Count > 0 && !IsScanning);
         toggleDarkModeCommand       = new RelayCommand(_ => ToggleDarkMode());
     }
@@ -96,6 +101,7 @@ public sealed class MainViewModel : ObservableObject
     public RelayCommand InstallDriverCommand     => installDriverCommand;
     public RelayCommand RefreshInterfacesCommand  => refreshInterfacesCommand;
     public RelayCommand OpenPrinterControlCommand => openPrinterControlCommand;
+    public RelayCommand OpenUtilitariosCommand    => openUtilitariosCommand;
     public RelayCommand SaveReportCommand         => saveReportCommand;
     public RelayCommand ToggleDarkModeCommand     => toggleDarkModeCommand;
 
@@ -614,6 +620,13 @@ public sealed class MainViewModel : ObservableObject
         var merged = Application.Current.Resources.MergedDictionaries;
         merged.Clear();
         merged.Add(dict);
+    }
+
+    private void OpenUtilitarios()
+    {
+        var vm     = new UtilitariosViewModel(utilitariosService);
+        var dialog = new UtilitariosWindow(vm) { Owner = Application.Current.MainWindow };
+        dialog.ShowDialog();
     }
 
     private static void OpenPrinterControl()

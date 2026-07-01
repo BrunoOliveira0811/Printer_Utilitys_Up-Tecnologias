@@ -1,2 +1,0 @@
-C:\Users\Admin\Downloads\PROJETOS\src\PrinterScanner.App\publish\win-x64-portable\PrinterScanner.pdb
-C:\Users\Admin\Downloads\PROJETOS\src\PrinterScanner.App\publish\win-x64-portable\PrinterScanner.exe

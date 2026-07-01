@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <AssemblyName>PrinterScanner-Setup</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationIcon>..\PrinterScanner.App\Resources\logo.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <DebugType>none</DebugType>
+    <!-- Sem trimming: usamos COM (WScript.Shell), Registry e ZipFile diretamente -->
+    <PublishTrimmed>false</PublishTrimmed>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="embedded-app\PrinterScanner.App.exe">
+      <LogicalName>PrinterScanner.App.exe</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="embedded-app\Utilitarios.zip"
+                      Condition="Exists('embedded-app\Utilitarios.zip')">
+      <LogicalName>Utilitarios.zip</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+</Project>

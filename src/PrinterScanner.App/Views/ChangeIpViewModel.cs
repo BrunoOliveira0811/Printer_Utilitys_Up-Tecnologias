@@ -14,6 +14,7 @@ public sealed class ChangeIpViewModel : ObservableObject
     private double progressValue;
     private bool isBusy;
     private bool hasStatus;
+    private CancellationTokenSource? cts;
 
     public ChangeIpViewModel(string currentIp, string currentMask, string currentGateway, PrinterIpService printerIpService)
     {
@@ -70,8 +71,13 @@ public sealed class ChangeIpViewModel : ObservableObject
 
     public bool CanApply => !IsBusy && IPAddress.TryParse(NewIp, out _) && NewIp != CurrentIp;
 
+    public void RequestCancel() => cts?.Cancel();
+
     public async Task<bool> ApplyAsync()
     {
+        using var localCts = new CancellationTokenSource();
+        cts = localCts;
+
         IsBusy = true;
         ProgressValue = 10;
         StatusMessage = "Enviando configuracao para a impressora...";
@@ -79,11 +85,23 @@ public sealed class ChangeIpViewModel : ObservableObject
         var progress = new Progress<string>(msg => StatusMessage = msg);
         var progressPct = new Progress<double>(v => ProgressValue = v);
 
-        var success = await printerIpService.ChangeIpAsync(CurrentIp, NewIp, NewMask, NewGateway, progress, progressPct);
-
-        ProgressValue = success ? 100 : 0;
-        IsBusy = false;
-        return success;
+        try
+        {
+            var success = await printerIpService.ChangeIpAsync(CurrentIp, NewIp, NewMask, NewGateway, progress, progressPct, localCts.Token);
+            ProgressValue = success ? 100 : 0;
+            return success;
+        }
+        catch (OperationCanceledException)
+        {
+            StatusMessage = "Operacao cancelada.";
+            ProgressValue = 0;
+            return false;
+        }
+        finally
+        {
+            IsBusy = false;
+            cts = null;
+        }
     }
 
     private static string GuessGateway(string ip)

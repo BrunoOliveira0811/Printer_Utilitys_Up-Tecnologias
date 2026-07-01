@@ -1,0 +1,21 @@
+# Build outputs
+bin/
+obj/
+
+# Publish outputs intermediarios (gerados pelo script)
+src/PrinterScanner.Installer/embedded-app/
+
+# Instalador final (grande demais para git - gerar com publish-installer.ps1)
+publish/win-x64-installer/
+
+# Editor / IDE
+.vs/
+*.user
+.vscode/
+
+# Logs e temporarios
+*.log
+*.tmp
+
+# Configuracoes locais do Claude Code
+.claude/settings.local.json

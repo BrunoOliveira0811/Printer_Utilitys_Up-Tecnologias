@@ -295,6 +295,11 @@
                 Command="{Binding OpenPrinterControlCommand}"
                 Style="{StaticResource ToolbarButtonStyle}"
                 DockPanel.Dock="Left" />
+        <Button Content="Utilitarios"
+                Command="{Binding OpenUtilitariosCommand}"
+                Style="{StaticResource ToolbarButtonStyle}"
+                DockPanel.Dock="Left"
+                ToolTip="Abre ferramentas de configuracao e teste para impressoras" />
         <Button Content="Salvar Relatorio"
                 Command="{Binding SaveReportCommand}"
                 Style="{StaticResource ToolbarButtonStyle}"

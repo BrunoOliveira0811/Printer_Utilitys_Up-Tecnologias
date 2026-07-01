@@ -21,6 +21,7 @@ public partial class MainWindow : Window
         var driverService         = new DriverService();
         var deviceNameService     = new DeviceNameService(settingsService.AppDataDirectory);
         var printerWindowsService = new PrinterWindowsService();
+        var utilitariosService    = new UtilitariosService();
 
         viewModel = new MainViewModel(
             settingsService,
@@ -30,7 +31,8 @@ public partial class MainWindow : Window
             printerIpService,
             driverService,
             deviceNameService,
-            printerWindowsService);
+            printerWindowsService,
+            utilitariosService);
 
         DataContext = viewModel;
     }

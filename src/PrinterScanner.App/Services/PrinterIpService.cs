@@ -23,14 +23,15 @@ public sealed class PrinterIpService
         string mask,
         string gateway,
         IProgress<string> status,
-        IProgress<double> progressPct)
+        IProgress<double> progressPct,
+        CancellationToken ct = default)
     {
         mask    = string.IsNullOrWhiteSpace(mask)    ? "255.255.255.0" : mask;
         gateway = string.IsNullOrWhiteSpace(gateway) ? GuessGateway(currentIp) : gateway;
 
         // Verifica conectividade antes de tentar
         status.Report($"Verificando conexao com {currentIp}:9100...");
-        var (canConnect, connectErr) = await TryConnectAsync(currentIp);
+        var (canConnect, connectErr) = await TryConnectAsync(currentIp, ct);
         if (!canConnect)
         {
             status.Report($"Sem conexao com a impressora: {connectErr}");
@@ -40,6 +41,8 @@ public sealed class PrinterIpService
 
         for (var i = 0; i < CommandFormats.Length; i++)
         {
+            ct.ThrowIfCancellationRequested();
+
             var n = i + 1;
             progressPct.Report(10 + i * 12);
 
@@ -47,7 +50,7 @@ public sealed class PrinterIpService
             var cmdText = Encoding.ASCII.GetString(cmd).Replace("\r", "\\r").Replace("\n", "\\n");
             status.Report($"[{n}/{CommandFormats.Length}] Enviando: {cmdText}");
 
-            var (sent, sendErr) = await TrySendAsync(currentIp, cmd);
+            var (sent, sendErr) = await TrySendAsync(currentIp, cmd, ct);
             if (!sent)
             {
                 status.Report($"[{n}] Erro ao enviar: {sendErr}");
@@ -57,7 +60,7 @@ public sealed class PrinterIpService
             status.Report($"[{n}] Enviado. Aguardando impressora em {newIp} (30s max)...");
             progressPct.Report(40 + i * 8);
 
-            var found = await WaitForNewIpAsync(newIp, 30, status, progressPct);
+            var found = await WaitForNewIpAsync(newIp, 30, status, progressPct, ct);
             if (found)
             {
                 status.Report($"IP alterado com sucesso para {newIp}!");
@@ -72,16 +75,23 @@ public sealed class PrinterIpService
         return false;
     }
 
-    private static async Task<(bool ok, string error)> TryConnectAsync(string ip)
+    private static async Task<(bool ok, string error)> TryConnectAsync(string ip, CancellationToken ct)
     {
         try
         {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(5000);
             using var tcp = new TcpClient();
-            var connect = tcp.ConnectAsync(ip, 9100);
-            if (await Task.WhenAny(connect, Task.Delay(5000)) != connect)
-                return (false, $"timeout ao conectar em {ip}:9100");
-            await connect;
+            await tcp.ConnectAsync(ip, 9100, cts.Token);
             return (true, string.Empty);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (OperationCanceledException)
+        {
+            return (false, $"timeout ao conectar em {ip}:9100");
         }
         catch (Exception ex)
         {
@@ -89,23 +99,30 @@ public sealed class PrinterIpService
         }
     }
 
-    private static async Task<(bool ok, string error)> TrySendAsync(string ip, byte[] command)
+    private static async Task<(bool ok, string error)> TrySendAsync(string ip, byte[] command, CancellationToken ct)
     {
         TcpClient? tcp = null;
         try
         {
             tcp = new TcpClient();
-            var connect = tcp.ConnectAsync(ip, 9100);
-            if (await Task.WhenAny(connect, Task.Delay(5000)) != connect)
-                return (false, "timeout na conexao");
-            await connect;
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(5000);
+            await tcp.ConnectAsync(ip, 9100, cts.Token);
 
             var stream = tcp.GetStream();
             stream.WriteTimeout = 4000;
-            await stream.WriteAsync(command);
-            await stream.FlushAsync();
-            await Task.Delay(400);
+            await stream.WriteAsync(command, ct);
+            await stream.FlushAsync(ct);
+            await Task.Delay(400, ct);
             return (true, string.Empty);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (OperationCanceledException)
+        {
+            return (false, "timeout na conexao");
         }
         catch (Exception ex)
         {
@@ -120,18 +137,19 @@ public sealed class PrinterIpService
     private static async Task<bool> WaitForNewIpAsync(
         string newIp, int seconds,
         IProgress<string> status,
-        IProgress<double> progressPct)
+        IProgress<double> progressPct,
+        CancellationToken ct)
     {
         var deadline = DateTime.UtcNow.AddSeconds(seconds);
         var elapsed  = 0;
 
         while (DateTime.UtcNow < deadline)
         {
-            await Task.Delay(2000);
+            await Task.Delay(2000, ct);
             elapsed += 2;
             progressPct.Report(Math.Min(95, 55 + elapsed));
 
-            if (await IsReachableAsync(newIp))
+            if (await IsReachableAsync(newIp, ct))
                 return true;
 
             status.Report($"Aguardando {newIp}... ({elapsed}s / {seconds}s)");
@@ -140,8 +158,10 @@ public sealed class PrinterIpService
         return false;
     }
 
-    private static async Task<bool> IsReachableAsync(string ip)
+    private static async Task<bool> IsReachableAsync(string ip, CancellationToken ct)
     {
+        ct.ThrowIfCancellationRequested();
+
         try
         {
             using var ping = new Ping();
@@ -150,11 +170,19 @@ public sealed class PrinterIpService
         }
         catch { }
 
+        ct.ThrowIfCancellationRequested();
+
         try
         {
             using var tcp = new TcpClient();
-            var t = tcp.ConnectAsync(ip, 9100);
-            return await Task.WhenAny(t, Task.Delay(900)) == t && !t.IsFaulted;
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(900);
+            await tcp.ConnectAsync(ip, 9100, cts.Token);
+            return true;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
         }
         catch
         {

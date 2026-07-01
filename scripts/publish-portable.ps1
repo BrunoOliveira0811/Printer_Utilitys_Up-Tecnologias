@@ -5,28 +5,65 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$ProjectRoot = Split-Path -Parent $PSScriptRoot
-$ProjectFile = Join-Path $ProjectRoot "src\\PrinterScanner.App\\PrinterScanner.App.csproj"
+$ProjectRoot   = Split-Path -Parent $PSScriptRoot
+$AppProject    = Join-Path $ProjectRoot "src\PrinterScanner.App\PrinterScanner.App.csproj"
+$LauncherProject = Join-Path $ProjectRoot "src\PrinterScanner.Launcher\PrinterScanner.Launcher.csproj"
+$EmbeddedDir   = Join-Path $ProjectRoot "src\PrinterScanner.Launcher\embedded-app"
+$PublishDir    = Join-Path $ProjectRoot "publish\$Runtime-portable"
+$UtilitarioDir = [System.IO.Path]::Combine([System.Environment]::GetFolderPath("UserProfile"), "Downloads", "UTILITÁRIO DE IMPRESSORAS")
 
 $dotnet = Get-Command dotnet -ErrorAction SilentlyContinue
 if (-not $dotnet) {
     throw "O SDK do .NET 8 nao foi encontrado no PATH. Instale o SDK e execute este script novamente."
 }
 
-$PublishDir = Join-Path $ProjectRoot "publish\\$Runtime-portable"
+# Etapa 1: publicar o WPF App como framework-dependent (pequeno, ~2-3MB)
+Write-Host "Etapa 1/2: publicando PrinterScanner.App (framework-dependent)..."
+& $dotnet.Source publish $AppProject `
+    -c Release `
+    -r $Runtime `
+    --self-contained false `
+    /p:PublishSingleFile=true `
+    /p:DebugType=None `
+    /p:DebugSymbols=false `
+    /p:PublishReadyToRun=false `
+    /p:PublishDir="$EmbeddedDir\"
 
-& $dotnet.Source publish $ProjectFile `
+if ($LASTEXITCODE -ne 0) { throw "Falha ao publicar PrinterScanner.App (codigo $LASTEXITCODE)" }
+
+# Renomeia o exe publicado para o nome esperado pelo Launcher
+$publishedApp = Get-ChildItem $EmbeddedDir -Filter "*.exe" | Select-Object -First 1
+if ($publishedApp -and $publishedApp.Name -ne "PrinterScanner.App.exe") {
+    Rename-Item $publishedApp.FullName "PrinterScanner.App.exe" -Force
+}
+
+Write-Host "App embutido pronto: $(Join-Path $EmbeddedDir 'PrinterScanner.App.exe')"
+Write-Host ""
+
+# Etapa 2: publicar o Launcher como self-contained + trimmed (~14MB)
+Write-Host "Etapa 2/2: publicando PrinterScanner.Launcher (self-contained + trimmed)..."
+& $dotnet.Source publish $LauncherProject `
     -c Release `
     -r $Runtime `
     --self-contained true `
     /p:PublishSingleFile=true `
     /p:EnableCompressionInSingleFile=true `
-    /p:IncludeNativeLibrariesForSelfExtract=true `
     /p:DebugType=None `
     /p:DebugSymbols=false `
     /p:PublishReadyToRun=false `
-    /p:PublishTrimmed=false `
-    /p:PublishDir="$PublishDir\\"
+    /p:PublishDir="$PublishDir\"
+
+if ($LASTEXITCODE -ne 0) { throw "Falha ao publicar PrinterScanner.Launcher (codigo $LASTEXITCODE)" }
 
 Write-Host ""
 Write-Host "Publicacao concluida em: $PublishDir"
+
+# Copia o executavel para a pasta de distribuicao
+$ExeName = Get-ChildItem $PublishDir -Filter "*.exe" | Select-Object -First 1
+if ($ExeName) {
+    New-Item -ItemType Directory -Force $UtilitarioDir | Out-Null
+    Copy-Item $ExeName.FullName "$UtilitarioDir\$($ExeName.Name)" -Force
+    Write-Host "Copiado tambem para: $UtilitarioDir\$($ExeName.Name)"
+} else {
+    Write-Warning "Nenhum .exe encontrado em $PublishDir para copiar."
+}
