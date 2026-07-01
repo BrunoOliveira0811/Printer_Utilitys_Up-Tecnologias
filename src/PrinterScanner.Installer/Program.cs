@@ -11,7 +11,7 @@ const uint MB_ICONINFO     = 0x00000040;
 const uint MB_ICONQUESTION = 0x00000020;
 const int  IDYES           = 6;
 
-const string DotNetDownloadUrl  = "https://dotnet.microsoft.com/en-us/download/dotnet/8.0";
+const string DotNetInstallerUrl = "https://aka.ms/dotnet/8.0/windowsdesktop-runtime-win-x64.exe";
 const string AppExeResource     = "PrinterScanner.App.exe";
 const string UtilitariosResource = "Utilitarios.zip";
 const string AppTitle           = "Utilitario de Impressoras - UP Tecnologias";
@@ -24,26 +24,35 @@ var installDir = Path.Combine(
     Publisher,
     AppDisplayName);
 
-// Verifica .NET 8 Desktop Runtime antes de instalar
+// Verifica .NET 8 Desktop Runtime — instala automaticamente se ausente
 if (!IsDotNet8DesktopRuntimeInstalled())
 {
     int choice = NativeMessageBox(
         "O .NET 8 Desktop Runtime nao foi encontrado nesta maquina.\n\n" +
-        "Este componente e necessario para executar o aplicativo apos a instalacao.\n\n" +
-        "Deseja abrir a pagina de download da Microsoft?",
+        "Este componente e necessario para executar o aplicativo.\n\n" +
+        "Deseja instala-lo agora automaticamente?",
         AppTitle,
         MB_YESNO | MB_ICONWARNING);
 
-    if (choice == IDYES)
+    if (choice != IDYES) return;
+
+    bool installed = TryInstallDotNet8Runtime();
+
+    if (!installed || !IsDotNet8DesktopRuntimeInstalled())
     {
-        ShellOpen(DotNetDownloadUrl);
         NativeMessageBox(
-            "Instale o '.NET 8.0 Desktop Runtime (v8.x.x) Windows x64'\ne execute este instalador novamente.",
+            "Nao foi possivel instalar o .NET 8 Desktop Runtime automaticamente.\n\n" +
+            "Instale manualmente em:\nhttps://dotnet.microsoft.com/download/dotnet/8.0\n\n" +
+            "Em seguida, execute este instalador novamente.",
             AppTitle,
-            MB_OK | MB_ICONINFO);
+            MB_OK | MB_ICONERROR);
+        return;
     }
 
-    return;
+    NativeMessageBox(
+        ".NET 8 Desktop Runtime instalado com sucesso!\n\nA instalacao do aplicativo continuara.",
+        AppTitle,
+        MB_OK | MB_ICONINFO);
 }
 
 // Confirmacao de instalacao
@@ -202,6 +211,100 @@ static void CreateShortcut(string shortcutPath, string targetPath, string workin
     }
 }
 
+static bool TryInstallDotNet8Runtime()
+{
+    // Tentativa 1: winget (disponivel no Windows 10 1809+ com App Installer)
+    if (TryInstallViaWinget()) return true;
+
+    // Tentativa 2: download direto + instalacao silenciosa via PowerShell
+    return TryInstallViaDirectDownload();
+}
+
+static bool TryInstallViaWinget()
+{
+    try
+    {
+        var psi = new System.Diagnostics.ProcessStartInfo
+        {
+            FileName  = "powershell.exe",
+            Arguments = "-NoProfile -ExecutionPolicy Bypass -Command " +
+                        "\"winget install Microsoft.DotNet.DesktopRuntime.8 " +
+                        "--accept-source-agreements --accept-package-agreements --silent\"",
+            UseShellExecute  = false,
+            CreateNoWindow   = true,
+            WindowStyle      = System.Diagnostics.ProcessWindowStyle.Hidden
+        };
+
+        using var proc = System.Diagnostics.Process.Start(psi);
+        if (proc is null) return false;
+
+        proc.WaitForExit(120_000); // aguarda ate 2 minutos
+        return proc.ExitCode == 0;
+    }
+    catch
+    {
+        return false;
+    }
+}
+
+static bool TryInstallViaDirectDownload()
+{
+    var tempInstaller = Path.Combine(Path.GetTempPath(), "dotnet8-desktop-runtime.exe");
+
+    try
+    {
+        NativeMessageBox(
+            "O .NET 8 Desktop Runtime sera baixado e instalado.\n\n" +
+            "O processo pode levar alguns minutos dependendo da sua conexao.\nAguarde...",
+            AppTitle,
+            MB_OK | MB_ICONINFO);
+
+        // Download via PowerShell (Invoke-WebRequest ou WebClient)
+        var downloadScript =
+            $"[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; " +
+            $"Invoke-WebRequest -Uri '{DotNetInstallerUrl}' -OutFile '{tempInstaller}' -UseBasicParsing";
+
+        var dlPsi = new System.Diagnostics.ProcessStartInfo
+        {
+            FileName  = "powershell.exe",
+            Arguments = $"-NoProfile -ExecutionPolicy Bypass -Command \"{downloadScript}\"",
+            UseShellExecute = false,
+            CreateNoWindow  = true,
+            WindowStyle     = System.Diagnostics.ProcessWindowStyle.Hidden
+        };
+
+        using (var dlProc = System.Diagnostics.Process.Start(dlPsi))
+        {
+            if (dlProc is null) return false;
+            dlProc.WaitForExit(300_000); // aguarda ate 5 minutos
+            if (dlProc.ExitCode != 0 || !File.Exists(tempInstaller)) return false;
+        }
+
+        // Executa o instalador baixado em modo silencioso
+        var installPsi = new System.Diagnostics.ProcessStartInfo
+        {
+            FileName        = tempInstaller,
+            Arguments       = "/quiet /norestart",
+            UseShellExecute = false,
+            CreateNoWindow  = true
+        };
+
+        using var installProc = System.Diagnostics.Process.Start(installPsi);
+        if (installProc is null) return false;
+
+        installProc.WaitForExit(300_000); // aguarda ate 5 minutos
+        return installProc.ExitCode == 0;
+    }
+    catch
+    {
+        return false;
+    }
+    finally
+    {
+        try { if (File.Exists(tempInstaller)) File.Delete(tempInstaller); } catch { }
+    }
+}
+
 static bool IsDotNet8DesktopRuntimeInstalled()
 {
     var runtimePath = Path.Combine(
@@ -214,15 +317,8 @@ static bool IsDotNet8DesktopRuntimeInstalled()
         .Any(d => Path.GetFileName(d).StartsWith("8.", StringComparison.Ordinal));
 }
 
-static void ShellOpen(string url) =>
-    ShellExecute(IntPtr.Zero, "open", url, null, null, 1);
-
 static int NativeMessageBox(string text, string caption, uint type) =>
     MessageBox(IntPtr.Zero, text, caption, type);
 
 [DllImport("user32.dll", CharSet = CharSet.Unicode)]
 static extern int MessageBox(IntPtr hWnd, string text, string caption, uint type);
-
-[DllImport("shell32.dll", CharSet = CharSet.Unicode)]
-static extern nint ShellExecute(IntPtr hwnd, string? op, string file,
-    string? args, string? dir, int show);
