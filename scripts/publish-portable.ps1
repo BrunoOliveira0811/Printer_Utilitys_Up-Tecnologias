@@ -5,12 +5,11 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$ProjectRoot   = Split-Path -Parent $PSScriptRoot
-$AppProject    = Join-Path $ProjectRoot "src\PrinterScanner.App\PrinterScanner.App.csproj"
+$ProjectRoot     = Split-Path -Parent $PSScriptRoot
+$AppProject      = Join-Path $ProjectRoot "src\PrinterScanner.App\PrinterScanner.App.csproj"
 $LauncherProject = Join-Path $ProjectRoot "src\PrinterScanner.Launcher\PrinterScanner.Launcher.csproj"
-$EmbeddedDir   = Join-Path $ProjectRoot "src\PrinterScanner.Launcher\embedded-app"
-$PublishDir    = Join-Path $ProjectRoot "publish\$Runtime-portable"
-$UtilitarioDir = [System.IO.Path]::Combine([System.Environment]::GetFolderPath("UserProfile"), "Downloads", "UTILITÁRIO DE IMPRESSORAS")
+$EmbeddedDir     = Join-Path $ProjectRoot "src\PrinterScanner.Launcher\embedded-app"
+$PublishDir      = Join-Path $ProjectRoot "publish\$Runtime-portable"
 
 $dotnet = Get-Command dotnet -ErrorAction SilentlyContinue
 if (-not $dotnet) {
@@ -61,14 +60,6 @@ Write-Host "Etapa 2/2: publicando PrinterScanner.Launcher (self-contained + trim
 if ($LASTEXITCODE -ne 0) { throw "Falha ao publicar PrinterScanner.Launcher (codigo $LASTEXITCODE)" }
 
 Write-Host ""
-Write-Host "Publicacao concluida em: $PublishDir"
-
-# Copia o executavel para a pasta de distribuicao
-$ExeName = Get-ChildItem $PublishDir -Filter "*.exe" | Select-Object -First 1
-if ($ExeName) {
-    New-Item -ItemType Directory -Force $UtilitarioDir | Out-Null
-    Copy-Item $ExeName.FullName "$UtilitarioDir\$($ExeName.Name)" -Force
-    Write-Host "Copiado tambem para: $UtilitarioDir\$($ExeName.Name)"
-} else {
-    Write-Warning "Nenhum .exe encontrado em $PublishDir para copiar."
-}
+$exe = Get-ChildItem $PublishDir -Filter "*.exe" | Select-Object -First 1
+$size = if ($exe) { [Math]::Round($exe.Length / 1MB, 1) } else { "?" }
+Write-Host "Publicacao concluida: $PublishDir\$($exe.Name) ($size MB)"
