@@ -12,7 +12,7 @@ const int  IDYES          = 6;
 
 const string DotNetDownloadUrl = "https://dotnet.microsoft.com/en-us/download/dotnet/8.0";
 const string EmbeddedAppName   = "PrinterScanner.App.exe";
-const string TempFolderName    = "UPUtilImpressoras";
+const string TempFolderName    = "UPUtilImpressoras_v3";
 const string AppTitle          = "Utilitario de Impressoras - UP Tecnologias";
 
 if (!IsDotNet8DesktopRuntimeInstalled())
@@ -53,11 +53,28 @@ var tempDir = Path.Combine(Path.GetTempPath(), TempFolderName);
 Directory.CreateDirectory(tempDir);
 var appPath = Path.Combine(tempDir, EmbeddedAppName);
 
-// Só extrai se ainda não existe ou se o tamanho mudou (nova versão)
-if (!File.Exists(appPath) || new FileInfo(appPath).Length != resource.Length)
+// Encerra instâncias anteriores para liberar o arquivo antes de sobrescrever
+foreach (var proc in System.Diagnostics.Process.GetProcessesByName("PrinterScanner.App"))
+{
+    try { proc.Kill(); proc.WaitForExit(3000); } catch { }
+}
+
+// Sobrescreve sempre para garantir que a versão extraída está atualizada
+try
 {
     using var fs = File.Create(appPath);
     resource.CopyTo(fs);
+}
+catch (IOException)
+{
+    if (!File.Exists(appPath))
+    {
+        NativeMessageBox(
+            "Nao foi possivel extrair o aplicativo.\nTente novamente.",
+            AppTitle,
+            MB_OK | MB_ICONERROR);
+        return;
+    }
 }
 
 Process.Start(new ProcessStartInfo { FileName = appPath, UseShellExecute = true });

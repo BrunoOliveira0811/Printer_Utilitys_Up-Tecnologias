@@ -605,6 +605,332 @@ public sealed class NetworkScannerService
         };
     }
 
+    // ── Broadcast Discovery ──────────────────────────────────────────────────
+    // 4 etapas:
+    //   1. Tabela ARP (vizinhos L2 recentemente vistos)
+    //   2. Scan ativo de sub-redes vizinhas na porta 9100 (JP-800 e similares)
+    //   3. Probe UDP broadcast 255.255.255.255 (SNMP / Rongta)
+    //   4. Probe dos candidatos (ping + porta + SNMP opcional)
+
+    public async Task BroadcastDiscoverAsync(
+        IReadOnlyList<string> communities,
+        IProgress<string> status,
+        IProgress<double> progressPct,
+        Action<PrinterDevice> onDeviceDiscovered,
+        CancellationToken ct)
+    {
+        var candidates = new HashSet<string>(StringComparer.Ordinal);
+
+        // Etapa 1 (0-8%): Tabela ARP
+        progressPct.Report(0);
+        status.Report("Etapa 1/4 — Lendo tabela ARP da rede...");
+        foreach (var ip in await GetArpTableAllIpsAsync(ct))
+            candidates.Add(ip);
+        progressPct.Report(8);
+
+        // Etapa 2 (8-42%): Scan de sub-redes vizinhas para porta 9100
+        // Encontra impressoras que mudaram de sub-rede (ex: 192.168.1.10 com PC em 192.168.0.x)
+        var subnetIps = BuildAdjacentSubnetIps();
+        if (subnetIps.Count > 0)
+        {
+            status.Report($"Etapa 2/4 — Sondando sub-redes vizinhas ({subnetIps.Count} IPs, porta 9100)...");
+            var subnetFound = new System.Collections.Concurrent.ConcurrentBag<string>();
+            int subnetTotal = subnetIps.Count;
+            int subnetDone  = 0;
+
+            using var subnetSem = new SemaphoreSlim(64);
+            var subnetTasks = subnetIps.Select(async ip =>
+            {
+                await subnetSem.WaitAsync(ct);
+                try
+                {
+                    if (await IsPortOpenAsync(ip, 9100, 350, ct))
+                        subnetFound.Add(ip);
+                }
+                catch (OperationCanceledException) { throw; }
+                catch { }
+                finally
+                {
+                    int done = Interlocked.Increment(ref subnetDone);
+                    progressPct.Report(8 + done * 34.0 / subnetTotal); // 8% → 42%
+                    subnetSem.Release();
+                }
+            });
+            await Task.WhenAll(subnetTasks);
+            foreach (var ip in subnetFound) candidates.Add(ip);
+        }
+        progressPct.Report(42);
+
+        // Etapa 3 (42-55%): UDP broadcast com deadline garantido
+        status.Report($"Etapa 3/4 — Broadcast UDP (3s)... {candidates.Count} candidato(s) até agora");
+        using var broadcastCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        broadcastCts.CancelAfter(3500);
+        var broadcastTask = UdpBroadcastProbeAsync(broadcastCts.Token);
+        for (int i = 0; i < 30 && !broadcastTask.IsCompleted; i++)
+        {
+            await Task.Delay(100, ct);
+            progressPct.Report(42 + (i + 1) * 0.43); // 42% → 55%
+        }
+        IEnumerable<string> broadcastIps;
+        try { broadcastIps = await broadcastTask; }
+        catch (OperationCanceledException) { broadcastIps = []; }
+        foreach (var ip in broadcastIps) candidates.Add(ip);
+        progressPct.Report(55);
+
+        if (candidates.Count == 0)
+        {
+            status.Report("Nenhum candidato encontrado.");
+            progressPct.Report(100);
+            return;
+        }
+
+        // Etapa 4 (55-100%): Probe por candidato
+        status.Report($"Etapa 4/4 — Verificando {candidates.Count} candidato(s)...");
+        int total  = candidates.Count;
+        int probed = 0;
+        int found  = 0;
+
+        using var sem = new SemaphoreSlim(8);
+        var tasks = candidates.Select(async ip =>
+        {
+            await sem.WaitAsync(ct);
+            try
+            {
+                var device = await ProbeBroadcastCandidateAsync(ip, communities, ct);
+                if (device is not null)
+                {
+                    Interlocked.Increment(ref found);
+                    onDeviceDiscovered(device);
+                }
+            }
+            finally
+            {
+                int done = Interlocked.Increment(ref probed);
+                progressPct.Report(55 + done * 45.0 / total); // 55% → 100%
+                sem.Release();
+            }
+        });
+
+        await Task.WhenAll(tasks);
+        progressPct.Report(100);
+        status.Report($"Busca ampliada concluida. {found} impressora(s) encontrada(s).");
+    }
+
+    // Gera IPs de sub-redes /24 adjacentes à(s) interface(s) local(is),
+    // excluindo a própria sub-rede (já coberta pelo scan normal).
+    private static List<string> BuildAdjacentSubnetIps()
+    {
+        var own = new HashSet<string>(StringComparer.Ordinal);
+        var result = new List<string>();
+
+        foreach (var ni in System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces())
+        {
+            if (ni.OperationalStatus != System.Net.NetworkInformation.OperationalStatus.Up) continue;
+            foreach (var ua in ni.GetIPProperties().UnicastAddresses)
+            {
+                if (ua.Address.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork) continue;
+                var parts = ua.Address.ToString().Split('.');
+                if (parts.Length != 4 ||
+                    !int.TryParse(parts[0], out int p0) ||
+                    !int.TryParse(parts[1], out int p1) ||
+                    !int.TryParse(parts[2], out int p2)) continue;
+
+                if (p0 == 127) continue;
+                own.Add($"{p0}.{p1}.{p2}"); // marca sub-rede atual
+
+                // Para 192.168.x.y: varre 0-9 (sub-redes comuns) + p2±10 (vizinhança do PC)
+                // Para 10.a.b.c: varre 10.a.b-3..b+3.1-254 (exceto própria)
+                IEnumerable<int> thirds;
+                if (p0 == 192 && p1 == 168)
+                {
+                    var set = new HashSet<int>(Enumerable.Range(0, 10));
+                    for (int i = Math.Max(0, p2 - 10); i <= Math.Min(254, p2 + 10); i++)
+                        set.Add(i);
+                    thirds = set;
+                }
+                else
+                {
+                    thirds = Enumerable.Range(Math.Max(0, p2 - 3), 7);
+                }
+
+                foreach (int c in thirds)
+                {
+                    var prefix = $"{p0}.{p1}.{c}";
+                    if (own.Contains(prefix)) continue;
+                    for (int d = 1; d <= 254; d++)
+                        result.Add($"{prefix}.{d}");
+                }
+            }
+        }
+        return result;
+    }
+
+    // Retorna prefixos /24 adjacentes que o PC NÃO tem interface local
+    // (precisam de IP temporário para serem alcançados diretamente).
+    public static IReadOnlyList<string> GetUnreachableAdjacentSubnetPrefixes()
+    {
+        var localPrefixes     = new HashSet<string>(StringComparer.Ordinal);
+        var candidatePrefixes = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var ni in System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces())
+        {
+            if (ni.OperationalStatus != System.Net.NetworkInformation.OperationalStatus.Up) continue;
+            foreach (var ua in ni.GetIPProperties().UnicastAddresses)
+            {
+                if (ua.Address.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork) continue;
+                var parts = ua.Address.ToString().Split('.');
+                if (parts.Length != 4 ||
+                    !int.TryParse(parts[0], out int p0) ||
+                    !int.TryParse(parts[1], out int p1) ||
+                    !int.TryParse(parts[2], out int p2)) continue;
+                if (p0 == 127) continue;
+
+                var own = $"{p0}.{p1}.{p2}";
+                localPrefixes.Add(own);
+
+                IEnumerable<int> thirds;
+                if (p0 == 192 && p1 == 168)
+                {
+                    var set = new HashSet<int>(Enumerable.Range(0, 10));
+                    for (int i = Math.Max(0, p2 - 10); i <= Math.Min(254, p2 + 10); i++)
+                        set.Add(i);
+                    thirds = set;
+                }
+                else
+                {
+                    thirds = Enumerable.Range(Math.Max(0, p2 - 3), 7);
+                }
+
+                foreach (int c in thirds)
+                {
+                    var prefix = $"{p0}.{p1}.{c}";
+                    if (prefix != own) candidatePrefixes.Add(prefix);
+                }
+            }
+        }
+
+        return candidatePrefixes.Where(p => !localPrefixes.Contains(p)).ToList();
+    }
+
+    // Lê TODOS os IPs da tabela ARP do Windows (arp -a)
+    private static async Task<IEnumerable<string>> GetArpTableAllIpsAsync(CancellationToken ct)
+    {
+        try
+        {
+            var proc = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "arp", Arguments = "-a",
+                    RedirectStandardOutput = true, CreateNoWindow = true, UseShellExecute = false
+                }
+            };
+            proc.Start();
+            var output = await proc.StandardOutput.ReadToEndAsync(ct);
+            await proc.WaitForExitAsync(ct);
+
+            // Extrai IPs (ex: "  192.168.1.100      aa-bb-cc ...")
+            return Regex.Matches(output, @"\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b")
+                        .Select(m => m.Groups[1].Value)
+                        .Where(ip => !ip.StartsWith("224.") && !ip.StartsWith("239.")
+                                  && !ip.StartsWith("255.") && ip != "0.0.0.0")
+                        .Distinct();
+        }
+        catch { return []; }
+    }
+
+    // Envia probe UDP para 255.255.255.255 e escuta respostas por 5s
+    // Retorna todos os IPs que responderam (dispositivos no mesmo segmento L2)
+    private static async Task<IEnumerable<string>> UdpBroadcastProbeAsync(CancellationToken ct)
+    {
+        var found = new HashSet<string>(StringComparer.Ordinal);
+        try
+        {
+            using var udp = new UdpClient();
+            udp.EnableBroadcast = true;
+            udp.Client.Bind(new System.Net.IPEndPoint(System.Net.IPAddress.Any, 0));
+
+            // Probe 1: porta 3000 (protocolo Rongta)
+            byte[] probe3000 = [0x1F, 0x01];
+            await udp.SendAsync(probe3000, new System.Net.IPEndPoint(System.Net.IPAddress.Broadcast, 3000));
+
+            // Probe 2: SNMP GET sysDescr na porta 161
+            try
+            {
+                var snmpVars = new List<Lextm.SharpSnmpLib.Variable>
+                    { new(new Lextm.SharpSnmpLib.ObjectIdentifier("1.3.6.1.2.1.1.1.0")) };
+                var snmpReq = new Lextm.SharpSnmpLib.Messaging.GetRequestMessage(
+                    1, Lextm.SharpSnmpLib.VersionCode.V1,
+                    new Lextm.SharpSnmpLib.OctetString("public"), snmpVars);
+                var snmpBytes = snmpReq.ToBytes();
+                await udp.SendAsync(snmpBytes, new System.Net.IPEndPoint(System.Net.IPAddress.Broadcast, 161));
+            }
+            catch { }
+
+            // Escuta até o CT disparar (broadcastCts cancela após 3,5s)
+            while (!ct.IsCancellationRequested)
+            {
+                try
+                {
+                    var result = await udp.ReceiveAsync(ct); // CT necessário — ReceiveTimeout ignora async
+                    found.Add(result.RemoteEndPoint.Address.ToString());
+                }
+                catch (OperationCanceledException) { break; }
+                catch { break; }
+            }
+        }
+        catch { }
+        return found;
+    }
+
+    // Probe rápido para candidato de broadcast.
+    // Estratégia: portas primeiro (TCP async, não bloqueia thread pool),
+    // SNMP apenas se alguma porta indicar impressora (evita starvation do pool).
+    private async Task<PrinterDevice?> ProbeBroadcastCandidateAsync(
+        string ip, IReadOnlyList<string> communities, CancellationToken ct)
+    {
+        // 1. Ping rápido — descarta imediatamente quem não responde
+        if (!await PingAsync(ip, 500)) return null;
+
+        // 2. Portas em paralelo (TCP async — não bloqueia thread pool)
+        //    Inclui 9100 (RAW/Rongta) pois JP-800 não tem 515/631 mas tem 9100
+        var port9100Task = IsPortOpenAsync(ip, 9100, 700, ct);
+        var port515Task  = IsPortOpenAsync(ip, 515,  700, ct);
+        var port631Task  = IsPortOpenAsync(ip, 631,  700, ct);
+        await Task.WhenAll(port9100Task, port515Task, port631Task);
+        bool port9100 = port9100Task.Result;
+        bool port515  = port515Task.Result;
+        bool port631  = port631Task.Result;
+
+        // 3. SNMP só para quem tem pelo menos uma porta de impressão aberta
+        SnmpProbeResult snmp = new();
+        if (port9100 || port515 || port631)
+            snmp = await TryReadSnmpAsync(ip, communities, 1000, ct);
+        else
+            return null;
+
+        var mac  = await TryReadMacAddressAsync(ip, ct);
+        var name = SelectPreferredName(snmp.HrDeviceDescr, snmp.PrinterName, null, null, snmp.SysDescription, snmp.SysName);
+
+        return new PrinterDevice
+        {
+            IpAddress       = ip,
+            SubnetMask      = snmp.SubnetMask,
+            Gateway         = snmp.Gateway,
+            DhcpStatus      = string.IsNullOrWhiteSpace(snmp.DhcpStatus) ? "Nao Identificado" : snmp.DhcpStatus,
+            MacAddress      = mac ?? string.Empty,
+            DeviceName      = string.IsNullOrWhiteSpace(name) ? "Impressora (broadcast)" : name,
+            DnsName         = string.Empty,
+            SysDescription  = snmp.SysDescription,
+            SnmpResponded   = snmp.SnmpResponded,
+            Port9100Open    = port9100,
+            Port515Open     = port515,
+            Port631Open     = port631,
+            IsLikelyPrinter = true,
+            DiscoveredAt    = DateTimeOffset.Now
+        };
+    }
+
     private static bool LooksLikePrinter(string? sysDescription)
     {
         if (string.IsNullOrWhiteSpace(sysDescription))

@@ -7,10 +7,13 @@ public partial class ChangeIpDialog : Window
 {
     private readonly ChangeIpViewModel vm;
 
-    public ChangeIpDialog(string currentIp, string currentMask, string currentGateway, PrinterIpService printerIpService)
+    public ChangeIpDialog(
+        string currentIp, string currentMask, string currentGateway,
+        string macAddress, PrinterIpService printerIpService,
+        string deviceName = "", string sysDescription = "")
     {
         InitializeComponent();
-        vm = new ChangeIpViewModel(currentIp, currentMask, currentGateway, printerIpService);
+        vm = new ChangeIpViewModel(currentIp, currentMask, currentGateway, macAddress, printerIpService, deviceName, sysDescription);
         DataContext = vm;
     }
 

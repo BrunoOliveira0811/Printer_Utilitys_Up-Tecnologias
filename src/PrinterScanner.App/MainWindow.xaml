@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:infra="clr-namespace:PrinterScanner.App.Infrastructure"
         mc:Ignorable="d"
         Title="Utilitario de Impressoras - UP Tecnologias"
         Icon="Resources/logo.png"
@@ -211,6 +212,10 @@
       </Setter>
     </Style>
 
+    <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+    <!-- Proxy para expor o ViewModel dentro do ContextMenu (árvore visual separada) -->
+    <infra:BindingProxy x:Key="VmProxy" Data="{Binding}" />
+
   </Window.Resources>
 
   <Grid Margin="12">
@@ -245,7 +250,7 @@
                      Text="Utilitario de Impressoras - UP Tecnologias" />
           <TextBlock Margin="0,2,0,0"
                      Foreground="{DynamicResource TextSecondary}"
-                     Text="Descoberta automatica de impressoras na rede com identificacao por SNMP e portas. v2.0" />
+                     Text="Descoberta automatica de impressoras na rede com identificacao por SNMP e portas. v3.0" />
         </StackPanel>
 
         <Border Grid.Column="2"
@@ -283,28 +288,16 @@
                 Command="{Binding ClearResultsCommand}"
                 Style="{StaticResource ToolbarButtonStyle}"
                 DockPanel.Dock="Left" />
-        <Button Content="Alterar IP"
-                Command="{Binding ChangeIpCommand}"
-                Style="{StaticResource ToolbarButtonStyle}"
-                DockPanel.Dock="Left" />
-        <Button Content="Instalar Driver"
-                Command="{Binding InstallDriverCommand}"
-                Style="{StaticResource ToolbarButtonStyle}"
-                DockPanel.Dock="Left" />
+        <Button Content="Acoes"
+                x:Name="BtnAcoes"
+                Click="BtnAcoes_Click"
+                Style="{StaticResource PrimaryToolbarButtonStyle}"
+                DockPanel.Dock="Left"
+                ToolTip="Abre o painel de acoes: Alterar IP, Instalar Driver, Utilitarios, Salvar Relatorio, Busca Ampliada" />
         <Button Content="Controle de Impressoras"
                 Command="{Binding OpenPrinterControlCommand}"
                 Style="{StaticResource ToolbarButtonStyle}"
                 DockPanel.Dock="Left" />
-        <Button Content="Utilitarios"
-                Command="{Binding OpenUtilitariosCommand}"
-                Style="{StaticResource ToolbarButtonStyle}"
-                DockPanel.Dock="Left"
-                ToolTip="Abre ferramentas de configuracao e teste para impressoras" />
-        <Button Content="Salvar Relatorio"
-                Command="{Binding SaveReportCommand}"
-                Style="{StaticResource ToolbarButtonStyle}"
-                DockPanel.Dock="Left"
-                ToolTip="Salva os resultados da varredura em arquivo .txt" />
 
         <!-- Dark mode toggle (right side) -->
         <ToggleButton IsChecked="{Binding IsDarkMode, Mode=OneWay}"
@@ -447,10 +440,42 @@
                   HorizontalGridLinesBrush="{DynamicResource GridHLine}"
                   VerticalGridLinesBrush="{DynamicResource GridVLine}"
                   ItemsSource="{Binding DevicesView}"
-                  SelectedItem="{Binding SelectedDevice}">
+                  SelectedItem="{Binding SelectedDevice}"
+                  MouseDoubleClick="DataGrid_MouseDoubleClick">
           <DataGrid.RowStyle>
             <Style TargetType="DataGridRow">
               <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
+              <EventSetter Event="PreviewMouseRightButtonDown"
+                           Handler="DataGridRow_PreviewMouseRightButtonDown" />
+              <Setter Property="ContextMenu">
+                <Setter.Value>
+                  <ContextMenu>
+                    <MenuItem Header="Alterar IP"
+                              Command="{Binding Source={StaticResource VmProxy}, Path=Data.ChangeIpCommand}" />
+                    <MenuItem Header="Instalar Driver"
+                              Command="{Binding Source={StaticResource VmProxy}, Path=Data.InstallDriverCommand}" />
+                    <Separator />
+                    <MenuItem Header="Limpar Fila"
+                              Command="{Binding Source={StaticResource VmProxy}, Path=Data.ClearQueueCommand}" />
+                    <MenuItem Header="Reiniciar Spooler"
+                              Command="{Binding Source={StaticResource VmProxy}, Path=Data.ClearSpoolerCommand}" />
+                    <Separator />
+                    <MenuItem Header="Enviar Teste"
+                              Command="{Binding Source={StaticResource VmProxy}, Path=Data.SendTestPrintCommand}" />
+                    <Separator />
+                    <MenuItem Header="Alterar Porta USB"
+                              Command="{Binding Source={StaticResource VmProxy}, Path=Data.ChangeUsbPortCommand}" />
+                    <Separator />
+                    <MenuItem Header="Compartilhar na Rede"
+                              Command="{Binding Source={StaticResource VmProxy}, Path=Data.SharePrinterCommand}" />
+                    <Separator />
+                    <MenuItem Header="Ativar / Desativar Modo Offline"
+                              Command="{Binding Source={StaticResource VmProxy}, Path=Data.ToggleWorkOfflineCommand}" />
+                    <MenuItem Header="Retomar Fila Pausada"
+                              Command="{Binding Source={StaticResource VmProxy}, Path=Data.ResumePrintQueueCommand}" />
+                  </ContextMenu>
+                </Setter.Value>
+              </Setter>
             </Style>
           </DataGrid.RowStyle>
           <DataGrid.ColumnHeaderStyle>
@@ -464,7 +489,8 @@
             </Style>
           </DataGrid.ColumnHeaderStyle>
           <DataGrid.Columns>
-            <DataGridTextColumn Binding="{Binding IpAddress}"    Header="IP"                              Width="110" IsReadOnly="True" />
+            <DataGridTextColumn Binding="{Binding IpAddress}"    Header="IP / Porta"                      Width="110" IsReadOnly="True" />
+            <DataGridTextColumn Binding="{Binding ConnectionType}" Header="Tipo"                          Width="60"  IsReadOnly="True" />
             <DataGridTextColumn Binding="{Binding DeviceName, UpdateSourceTrigger=PropertyChanged}"
                                 Header="Nome (duplo clique para editar)" Width="220" IsReadOnly="False">
               <DataGridTextColumn.ElementStyle>
@@ -485,11 +511,52 @@
             <DataGridTextColumn Binding="{Binding DisplaySubnetMask}" Header="Mascara"  Width="110" IsReadOnly="True" />
             <DataGridTextColumn Binding="{Binding DisplayGateway}"    Header="Gateway"  Width="110" IsReadOnly="True" />
             <DataGridTextColumn Binding="{Binding DhcpStatus}"        Header="DHCP"     Width="120" IsReadOnly="True" />
-            <DataGridCheckBoxColumn Binding="{Binding SnmpResponded}" Header="SNMP"     Width="70"  IsReadOnly="True" />
-            <DataGridCheckBoxColumn Binding="{Binding Port9100Open}"  Header="9100"     Width="65"  IsReadOnly="True" />
-            <DataGridCheckBoxColumn Binding="{Binding Port515Open}"   Header="515"      Width="65"  IsReadOnly="True" />
-            <DataGridCheckBoxColumn Binding="{Binding Port631Open}"   Header="631"      Width="65"  IsReadOnly="True" />
-            <DataGridTextColumn Binding="{Binding SysDescription}"    Header="Descricao do dispositivo" Width="*" IsReadOnly="True" />
+            <DataGridTextColumn Binding="{Binding WorkOfflineDisplay}" Header="Offline" Width="70" IsReadOnly="True"
+                                Visibility="{Binding Data.HasAnyOfflinePrinter, Source={StaticResource VmProxy}, Converter={StaticResource BoolToVis}}">
+              <DataGridTextColumn.ElementStyle>
+                <Style TargetType="TextBlock">
+                  <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+                  <Style.Triggers>
+                    <DataTrigger Binding="{Binding WorkOffline}" Value="True">
+                      <Setter Property="Foreground"  Value="#E53935"/>
+                      <Setter Property="FontWeight"  Value="SemiBold"/>
+                      <Setter Property="ToolTip"     Value="Impressora em modo offline. Clique duplo para voltar ao modo online."/>
+                    </DataTrigger>
+                  </Style.Triggers>
+                </Style>
+              </DataGridTextColumn.ElementStyle>
+            </DataGridTextColumn>
+            <DataGridTextColumn Binding="{Binding QueuePausedDisplay}" Header="Fila" Width="70" IsReadOnly="True"
+                                Visibility="{Binding Data.HasAnyPausedQueue, Source={StaticResource VmProxy}, Converter={StaticResource BoolToVis}}">
+              <DataGridTextColumn.ElementStyle>
+                <Style TargetType="TextBlock">
+                  <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+                  <Style.Triggers>
+                    <DataTrigger Binding="{Binding QueuePaused}" Value="True">
+                      <Setter Property="Foreground"  Value="#E53935"/>
+                      <Setter Property="FontWeight"  Value="SemiBold"/>
+                      <Setter Property="ToolTip"     Value="Fila pausada. Clique duplo para retomar."/>
+                    </DataTrigger>
+                  </Style.Triggers>
+                </Style>
+              </DataGridTextColumn.ElementStyle>
+            </DataGridTextColumn>
+            <DataGridTextColumn Binding="{Binding SysDescription, UpdateSourceTrigger=PropertyChanged}"
+                                Header="Descricao (duplo clique para editar)" Width="*" IsReadOnly="False">
+              <DataGridTextColumn.ElementStyle>
+                <Style TargetType="TextBlock">
+                  <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+                  <Setter Property="ToolTip"    Value="Duplo clique para editar a descricao"/>
+                </Style>
+              </DataGridTextColumn.ElementStyle>
+              <DataGridTextColumn.EditingElementStyle>
+                <Style TargetType="TextBox">
+                  <Setter Property="Background"  Value="{DynamicResource InputBg}"/>
+                  <Setter Property="Foreground"  Value="{DynamicResource InputFg}"/>
+                  <Setter Property="BorderBrush" Value="#F9A825"/>
+                </Style>
+              </DataGridTextColumn.EditingElementStyle>
+            </DataGridTextColumn>
           </DataGrid.Columns>
         </DataGrid>
       </Grid>

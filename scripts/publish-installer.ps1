@@ -18,6 +18,8 @@ if (-not $dotnet) {
     throw "O SDK do .NET 8 nao foi encontrado no PATH. Instale o SDK e execute este script novamente."
 }
 
+# Remove publicação anterior
+if (Test-Path $PublishDir) { Remove-Item $PublishDir -Recurse -Force }
 New-Item -ItemType Directory -Force $EmbeddedDir | Out-Null
 New-Item -ItemType Directory -Force $PublishDir  | Out-Null
 

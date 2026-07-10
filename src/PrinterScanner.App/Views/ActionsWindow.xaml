@@ -1,0 +1,314 @@
+<Window x:Class="PrinterScanner.App.Views.ActionsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Acoes — UP Tecnologias"
+        Width="440" Height="800"
+        MinWidth="440" MinHeight="480"
+        WindowStyle="ToolWindow"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        Background="{DynamicResource AppBg}">
+
+  <Window.Resources>
+
+    <Style x:Key="ActionCardStyle" TargetType="Button">
+      <Setter Property="Background"               Value="{DynamicResource CardBg}" />
+      <Setter Property="BorderBrush"              Value="{DynamicResource PanelBorder}" />
+      <Setter Property="BorderThickness"          Value="1" />
+      <Setter Property="Margin"                   Value="0,0,0,10" />
+      <Setter Property="Padding"                  Value="0" />
+      <Setter Property="Cursor"                   Value="Hand" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Bd"
+                    Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}">
+              <ContentPresenter />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Accent}" />
+                <Setter TargetName="Bd" Property="Background"  Value="{DynamicResource ButtonBg}" />
+              </Trigger>
+              <Trigger Property="IsPressed" Value="True">
+                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Accent}" />
+                <Setter TargetName="Bd" Property="Background"  Value="{DynamicResource ToolbarBg}" />
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="0.38" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+  </Window.Resources>
+
+  <Grid Margin="16,14">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <!-- Header -->
+    <Border Grid.Row="0"
+            Padding="2,0,0,12"
+            BorderBrush="{DynamicResource PanelBorder}"
+            BorderThickness="0,0,0,1">
+      <StackPanel>
+        <TextBlock Text="Acoes disponíveis"
+                   FontSize="16" FontWeight="SemiBold"
+                   Foreground="{DynamicResource TextPrimary}" />
+        <TextBlock Margin="0,3,0,0"
+                   Text="Selecione uma acao para executar na impressora selecionada ou na rede."
+                   FontSize="11"
+                   Foreground="{DynamicResource TextSecondary}"
+                   TextWrapping="Wrap" />
+      </StackPanel>
+    </Border>
+
+    <!-- Action cards -->
+    <ScrollViewer Grid.Row="1" Margin="0,12,0,0"
+                  VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled">
+    <StackPanel>
+
+      <!-- Alterar IP -->
+      <Button x:Name="BtnAlterarIp" Style="{StaticResource ActionCardStyle}"
+              Click="BtnAlterarIp_Click"
+              Command="{Binding ChangeIpCommand}">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="6" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+          <Rectangle Grid.Column="0" Fill="{DynamicResource Accent}" />
+          <StackPanel Grid.Column="1" Margin="16,14,16,14">
+            <TextBlock Text="Alterar IP"
+                       FontSize="14" FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextPrimary}" />
+            <TextBlock Margin="0,4,0,0"
+                       Text="Modifica o endereco IP, mascara e gateway da impressora selecionada."
+                       FontSize="11"
+                       Foreground="{DynamicResource TextSecondary}"
+                       TextWrapping="Wrap" />
+          </StackPanel>
+        </Grid>
+      </Button>
+
+      <!-- Instalar Driver -->
+      <Button x:Name="BtnInstalarDriver" Style="{StaticResource ActionCardStyle}"
+              Click="BtnInstalarDriver_Click"
+              Command="{Binding InstallDriverCommand}">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="6" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+          <Rectangle Grid.Column="0" Fill="{DynamicResource Accent}" />
+          <StackPanel Grid.Column="1" Margin="16,14,16,14">
+            <TextBlock Text="Instalar Driver"
+                       FontSize="14" FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextPrimary}" />
+            <TextBlock Margin="0,4,0,0"
+                       Text="Instala o driver da impressora selecionada nesta maquina."
+                       FontSize="11"
+                       Foreground="{DynamicResource TextSecondary}"
+                       TextWrapping="Wrap" />
+          </StackPanel>
+        </Grid>
+      </Button>
+
+      <!-- Utilitários -->
+      <Button x:Name="BtnUtilitarios" Style="{StaticResource ActionCardStyle}"
+              Click="BtnUtilitarios_Click"
+              Command="{Binding OpenUtilitariosCommand}">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="6" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+          <Rectangle Grid.Column="0" Fill="{DynamicResource Accent}" />
+          <StackPanel Grid.Column="1" Margin="16,14,16,14">
+            <TextBlock Text="Utilitarios"
+                       FontSize="14" FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextPrimary}" />
+            <TextBlock Margin="0,4,0,0"
+                       Text="Ferramentas de configuracao e diagnostico para impressoras."
+                       FontSize="11"
+                       Foreground="{DynamicResource TextSecondary}"
+                       TextWrapping="Wrap" />
+          </StackPanel>
+        </Grid>
+      </Button>
+
+      <!-- Salvar Relatório -->
+      <Button x:Name="BtnSalvarRelatorio" Style="{StaticResource ActionCardStyle}"
+              Click="BtnSalvarRelatorio_Click"
+              Command="{Binding SaveReportCommand}">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="6" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+          <Rectangle Grid.Column="0" Fill="{DynamicResource Accent}" />
+          <StackPanel Grid.Column="1" Margin="16,14,16,14">
+            <TextBlock Text="Salvar Relatorio"
+                       FontSize="14" FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextPrimary}" />
+            <TextBlock Margin="0,4,0,0"
+                       Text="Exporta os resultados da varredura atual para um arquivo .txt."
+                       FontSize="11"
+                       Foreground="{DynamicResource TextSecondary}"
+                       TextWrapping="Wrap" />
+          </StackPanel>
+        </Grid>
+      </Button>
+
+      <!-- Busca Ampliada -->
+      <Button x:Name="BtnBuscaAmpliada" Style="{StaticResource ActionCardStyle}"
+              Click="BtnBuscaAmpliada_Click"
+              Command="{Binding BroadcastScanCommand}">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="6" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+          <Rectangle Grid.Column="0" Fill="{DynamicResource Accent}" />
+          <StackPanel Grid.Column="1" Margin="16,14,16,14">
+            <TextBlock Text="Busca Ampliada"
+                       FontSize="14" FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextPrimary}" />
+            <TextBlock Margin="0,4,0,0"
+                       Text="Encontra impressoras em sub-redes diferentes via scan ativo e broadcast UDP."
+                       FontSize="11"
+                       Foreground="{DynamicResource TextSecondary}"
+                       TextWrapping="Wrap" />
+          </StackPanel>
+        </Grid>
+      </Button>
+
+      <!-- Limpar Fila de Impressoras -->
+      <Button x:Name="BtnLimparFila" Style="{StaticResource ActionCardStyle}"
+              Click="BtnLimparFila_Click"
+              Command="{Binding ClearQueueCommand}">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="6" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+          <Rectangle Grid.Column="0" Fill="#E53935" />
+          <StackPanel Grid.Column="1" Margin="16,14,16,14">
+            <TextBlock Text="Limpar Fila de Impressoras"
+                       FontSize="14" FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextPrimary}" />
+            <TextBlock Margin="0,4,0,0"
+                       Text="Cancela todos os trabalhos pendentes da impressora selecionada (ou de todas, se nenhuma estiver selecionada)."
+                       FontSize="11"
+                       Foreground="{DynamicResource TextSecondary}"
+                       TextWrapping="Wrap" />
+          </StackPanel>
+        </Grid>
+      </Button>
+
+      <!-- Limpar Spooler -->
+      <Button x:Name="BtnLimparSpooler" Style="{StaticResource ActionCardStyle}"
+              Click="BtnLimparSpooler_Click"
+              Command="{Binding ClearSpoolerCommand}">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="6" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+          <Rectangle Grid.Column="0" Fill="#E53935" />
+          <StackPanel Grid.Column="1" Margin="16,14,16,14">
+            <TextBlock Text="Reiniciar Spooler"
+                       FontSize="14" FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextPrimary}" />
+            <TextBlock Margin="0,4,0,0"
+                       Text="Para o servico Spooler, apaga os arquivos de fila e reinicia o servico. Requer administrador (UAC)."
+                       FontSize="11"
+                       Foreground="{DynamicResource TextSecondary}"
+                       TextWrapping="Wrap" />
+          </StackPanel>
+        </Grid>
+      </Button>
+
+      <!-- Pausar Fila de Impressão -->
+      <Button x:Name="BtnPausarFila" Style="{StaticResource ActionCardStyle}"
+              Click="BtnPausarFila_Click"
+              Command="{Binding PauseQueueCommand}">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="6" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+          <Rectangle Grid.Column="0" Fill="#F57C00" />
+          <StackPanel Grid.Column="1" Margin="16,14,16,14">
+            <TextBlock Text="Pausar / Retomar Fila de Impressao"
+                       FontSize="14" FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextPrimary}" />
+            <TextBlock Margin="0,4,0,0"
+                       Text="Pausa ou retoma a fila da impressora selecionada. Requer a impressora instalada no Windows."
+                       FontSize="11"
+                       Foreground="{DynamicResource TextSecondary}"
+                       TextWrapping="Wrap" />
+          </StackPanel>
+        </Grid>
+      </Button>
+
+      <!-- Alterar Porta USB -->
+      <Button x:Name="BtnAlterarPortaUsb" Style="{StaticResource ActionCardStyle}"
+              Click="BtnAlterarPortaUsb_Click"
+              Command="{Binding ChangeUsbPortCommand}">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="6" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+          <Rectangle Grid.Column="0" Fill="#7B1FA2" />
+          <StackPanel Grid.Column="1" Margin="16,14,16,14">
+            <TextBlock Text="Alterar Porta USB"
+                       FontSize="14" FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextPrimary}" />
+            <TextBlock Margin="0,4,0,0"
+                       Text="Reatribui a impressora USB selecionada a uma porta USB diferente (USB001, USB002...)."
+                       FontSize="11"
+                       Foreground="{DynamicResource TextSecondary}"
+                       TextWrapping="Wrap" />
+          </StackPanel>
+        </Grid>
+      </Button>
+
+      <!-- Enviar Impressão Teste -->
+      <Button x:Name="BtnImpressaoTeste" Style="{StaticResource ActionCardStyle}"
+              Click="BtnImpressaoTeste_Click"
+              Command="{Binding SendTestPrintCommand}">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="6" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+          <Rectangle Grid.Column="0" Fill="#2E7D32" />
+          <StackPanel Grid.Column="1" Margin="16,14,16,14">
+            <TextBlock Text="Enviar Impressao de Teste"
+                       FontSize="14" FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextPrimary}" />
+            <TextBlock Margin="0,4,0,0"
+                       Text="Envia a pagina de teste do Windows para a impressora selecionada. Requer driver instalado."
+                       FontSize="11"
+                       Foreground="{DynamicResource TextSecondary}"
+                       TextWrapping="Wrap" />
+          </StackPanel>
+        </Grid>
+      </Button>
+
+    </StackPanel>
+    </ScrollViewer>
+  </Grid>
+
+</Window>

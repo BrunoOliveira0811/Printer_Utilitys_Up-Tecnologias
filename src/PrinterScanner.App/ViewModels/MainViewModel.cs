@@ -30,6 +30,15 @@ public sealed class MainViewModel : ObservableObject
     private readonly RelayCommand openUtilitariosCommand;
     private readonly RelayCommand saveReportCommand;
     private readonly RelayCommand toggleDarkModeCommand;
+    private readonly RelayCommand broadcastScanCommand;
+    private readonly RelayCommand clearQueueCommand;
+    private readonly RelayCommand clearSpoolerCommand;
+    private readonly RelayCommand pauseQueueCommand;
+    private readonly RelayCommand sendTestPrintCommand;
+    private readonly RelayCommand changeUsbPortCommand;
+    private readonly RelayCommand sharePrinterCommand;
+    private readonly RelayCommand toggleWorkOfflineCommand;
+    private readonly RelayCommand resumePrintQueueCommand;
     private readonly DeviceNameService deviceNameService;
     private readonly PrinterWindowsService printerWindowsService;
     private bool isDarkMode;
@@ -77,17 +86,29 @@ public sealed class MainViewModel : ObservableObject
         startScanCommand         = new RelayCommand(_ => _ = StartScanAsync(), _ => !IsScanning);
         cancelScanCommand        = new RelayCommand(_ => CancelScan(), _ => IsScanning);
         clearResultsCommand      = new RelayCommand(_ => ClearResults(), _ => devices.Count > 0 && !IsScanning);
-        changeIpCommand          = new RelayCommand(_ => OpenChangeIpDialog(), _ => selectedDevice is not null && !IsScanning);
+        changeIpCommand          = new RelayCommand(_ => OpenChangeIpDialog(), _ => selectedDevice is not null && !selectedDevice.IsUsbDevice && !IsScanning);
         installDriverCommand     = new RelayCommand(_ => _ = InstallDriverAsync(), _ => CanInstallDriver());
         refreshInterfacesCommand    = new RelayCommand(_ => LoadInterfaces(), _ => !IsScanning);
         openPrinterControlCommand   = new RelayCommand(_ => OpenPrinterControl());
         openUtilitariosCommand      = new RelayCommand(_ => OpenUtilitarios());
         saveReportCommand           = new RelayCommand(_ => _ = SaveReportAsync(), _ => devices.Count > 0 && !IsScanning);
         toggleDarkModeCommand       = new RelayCommand(_ => ToggleDarkMode());
+        broadcastScanCommand        = new RelayCommand(_ => _ = BroadcastScanAsync(), _ => !IsScanning);
+        clearQueueCommand           = new RelayCommand(_ => _ = ClearQueueAsync(), _ => !IsScanning);
+        clearSpoolerCommand         = new RelayCommand(_ => _ = ClearSpoolerAsync(), _ => !IsScanning);
+        pauseQueueCommand           = new RelayCommand(_ => _ = TogglePauseQueueAsync(), _ => selectedDevice is not null && !IsScanning);
+        sendTestPrintCommand        = new RelayCommand(_ => _ = SendTestPrintAsync(), _ => selectedDevice is not null && !IsScanning);
+        changeUsbPortCommand        = new RelayCommand(_ => _ = ChangeUsbPortAsync(), _ => selectedDevice?.IsUsbDevice == true && !IsScanning);
+        sharePrinterCommand         = new RelayCommand(_ => _ = SharePrinterAsync(), _ => selectedDevice is not null && !IsScanning);
+        toggleWorkOfflineCommand    = new RelayCommand(_ => _ = ToggleWorkOfflineAsync(), _ => !string.IsNullOrEmpty(selectedDevice?.InstalledPrinterName) && !IsScanning);
+        resumePrintQueueCommand     = new RelayCommand(_ => _ = ResumePrintQueueSelectedAsync(), _ => selectedDevice?.QueuePaused == true && !string.IsNullOrEmpty(selectedDevice?.InstalledPrinterName) && !IsScanning);
     }
 
     public ICollectionView DevicesView { get; }
     public IEnumerable<NetworkInterfaceInfo> AvailableInterfaces => availableInterfaces;
+
+    public bool HasAnyOfflinePrinter => devices.Any(d => d.WorkOffline);
+    public bool HasAnyPausedQueue    => devices.Any(d => d.QueuePaused);
 
     public RelayCommand StartScanCommand => startScanCommand;
 
@@ -103,6 +124,15 @@ public sealed class MainViewModel : ObservableObject
     public RelayCommand OpenUtilitariosCommand    => openUtilitariosCommand;
     public RelayCommand SaveReportCommand         => saveReportCommand;
     public RelayCommand ToggleDarkModeCommand     => toggleDarkModeCommand;
+    public RelayCommand BroadcastScanCommand    => broadcastScanCommand;
+    public RelayCommand ClearQueueCommand       => clearQueueCommand;
+    public RelayCommand ClearSpoolerCommand     => clearSpoolerCommand;
+    public RelayCommand PauseQueueCommand       => pauseQueueCommand;
+    public RelayCommand SendTestPrintCommand    => sendTestPrintCommand;
+    public RelayCommand ChangeUsbPortCommand        => changeUsbPortCommand;
+    public RelayCommand SharePrinterCommand         => sharePrinterCommand;
+    public RelayCommand ToggleWorkOfflineCommand    => toggleWorkOfflineCommand;
+    public RelayCommand ResumePrintQueueCommand     => resumePrintQueueCommand;
 
     public bool IsDarkMode
     {
@@ -124,6 +154,12 @@ public sealed class MainViewModel : ObservableObject
             SetProperty(ref selectedDevice, value);
             changeIpCommand.RaiseCanExecuteChanged();
             installDriverCommand.RaiseCanExecuteChanged();
+            pauseQueueCommand.RaiseCanExecuteChanged();
+            sendTestPrintCommand.RaiseCanExecuteChanged();
+            changeUsbPortCommand.RaiseCanExecuteChanged();
+            sharePrinterCommand.RaiseCanExecuteChanged();
+            toggleWorkOfflineCommand.RaiseCanExecuteChanged();
+            resumePrintQueueCommand.RaiseCanExecuteChanged();
         }
     }
 
@@ -221,6 +257,7 @@ public sealed class MainViewModel : ObservableObject
 
         LoadInterfaces();
         RefreshExportState();
+        await ScanInstalledPrintersAsync();
     }
 
     public async Task StartScanAsync()
@@ -266,6 +303,7 @@ public sealed class MainViewModel : ObservableObject
                 device => Application.Current.Dispatcher.Invoke(() => UpsertDevice(device)),
                 scanCancellationSource.Token);
 
+            await ScanInstalledPrintersAsync();
             StatusMessage = $"Varredura concluida. {devices.Count} impressora(s) encontrada(s).";
         }
         catch (OperationCanceledException)
@@ -291,6 +329,84 @@ public sealed class MainViewModel : ObservableObject
                 "Falha na varredura",
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
+        }
+        finally
+        {
+            IsScanning = false;
+            scanCancellationSource?.Dispose();
+            scanCancellationSource = null;
+            RefreshExportState();
+        }
+    }
+
+    public async Task BroadcastScanAsync()
+    {
+        if (IsScanning) return;
+
+        try
+        {
+            IsScanning = true;
+            scanCancellationSource = new CancellationTokenSource();
+            ProgressValue = 0;
+            ProgressText = "0%";
+            StatusMessage = "Iniciando busca ampliada (ARP + broadcast UDP)...";
+
+            currentSettings.SnmpCommunities = ParseCommunities(SnmpCommunitiesText);
+            var communities = currentSettings.SnmpCommunities;
+
+            var statusProg = new Progress<string>(msg => StatusMessage = msg);
+            var progressProg = new Progress<double>(pct =>
+            {
+                ProgressValue = pct;
+                ProgressText  = $"{Math.Round(pct, 0)}%";
+            });
+
+            Task RunDiscover() => networkScannerService.BroadcastDiscoverAsync(
+                communities,
+                statusProg,
+                progressProg,
+                device => Application.Current.Dispatcher.Invoke(() => UpsertDevice(device)),
+                scanCancellationSource.Token);
+
+            // Remove IPs .253 que possam ter ficado de execuções anteriores
+            var orphanCheck = System.Net.NetworkInformation.NetworkInterface
+                .GetAllNetworkInterfaces()
+                .SelectMany(n => n.GetIPProperties().UnicastAddresses)
+                .Any(u => u.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork
+                          && u.Address.ToString().EndsWith(".253"));
+            if (orphanCheck)
+            {
+                StatusMessage = "Limpando IPs temporarios de execucoes anteriores...";
+                await printerWindowsService.CleanupOrphanedSubnetIpsAsync();
+            }
+
+            // Detecta sub-redes adjacentes sem rota local e adiciona IPs temporários
+            var unreachable = NetworkScannerService.GetUnreachableAdjacentSubnetPrefixes();
+            if (unreachable.Count > 0)
+            {
+                await printerWindowsService.RunWithTemporarySubnetIpsAsync(
+                    unreachable,
+                    RunDiscover,
+                    msg => StatusMessage = msg);
+            }
+            else
+            {
+                await RunDiscover();
+            }
+
+            await ScanInstalledPrintersAsync();
+            ProgressValue = 100;
+            ProgressText = "100%";
+            StatusMessage = $"Busca ampliada concluida. {devices.Count} impressora(s) na lista.";
+        }
+        catch (OperationCanceledException)
+        {
+            StatusMessage = "Busca ampliada cancelada.";
+        }
+        catch (Exception ex)
+        {
+            logService.LogError("Erro na busca ampliada.", ex);
+            StatusMessage = "Erro na busca ampliada. Consulte o log.";
         }
         finally
         {
@@ -402,11 +518,14 @@ public sealed class MainViewModel : ObservableObject
 
     private void UpsertDevice(PrinterDevice device)
     {
-        // Aplica nome salvo pelo MAC antes de subscrever para não disparar re-save desnecessário
+        // Aplica nome e descrição salvos pelo MAC antes de subscrever para não disparar re-save
         if (!string.IsNullOrWhiteSpace(device.MacAddress))
         {
-            var saved = deviceNameService.GetName(device.MacAddress);
-            if (saved is not null) device.DeviceName = saved;
+            var savedName = deviceNameService.GetName(device.MacAddress);
+            if (savedName is not null) device.DeviceName = savedName;
+
+            var savedDesc = deviceNameService.GetDescription(device.MacAddress);
+            if (savedDesc is not null) device.SysDescription = savedDesc;
         }
 
         var existing = devices.FirstOrDefault(current =>
@@ -433,9 +552,23 @@ public sealed class MainViewModel : ObservableObject
 
     private void OnDevicePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (sender is not PrinterDevice device || e.PropertyName != nameof(PrinterDevice.DeviceName)) return;
+        if (sender is not PrinterDevice device) return;
+
         if (string.IsNullOrWhiteSpace(device.MacAddress)) return;
-        _ = PersistDeviceNameAsync(device.MacAddress, device.DeviceName, device.IpAddress);
+
+        if (e.PropertyName == nameof(PrinterDevice.DeviceName))
+            _ = PersistDeviceNameAsync(device.MacAddress, device.DeviceName, device.IpAddress);
+
+        if (e.PropertyName == nameof(PrinterDevice.SysDescription))
+            _ = deviceNameService.SetDescriptionAsync(device.MacAddress, device.SysDescription ?? string.Empty);
+
+        if (e.PropertyName is nameof(PrinterDevice.WorkOffline) or nameof(PrinterDevice.QueuePaused))
+        {
+            toggleWorkOfflineCommand.RaiseCanExecuteChanged();
+            resumePrintQueueCommand.RaiseCanExecuteChanged();
+            RaisePropertyChanged(nameof(HasAnyOfflinePrinter));
+            RaisePropertyChanged(nameof(HasAnyPausedQueue));
+        }
     }
 
     private async Task PersistDeviceNameAsync(string mac, string name, string ip)
@@ -498,6 +631,8 @@ public sealed class MainViewModel : ObservableObject
     {
         DevicesView.Refresh();
         UpdateCommands();
+        RaisePropertyChanged(nameof(HasAnyOfflinePrinter));
+        RaisePropertyChanged(nameof(HasAnyPausedQueue));
     }
 
     private void LoadInterfaces()
@@ -528,6 +663,14 @@ public sealed class MainViewModel : ObservableObject
         installDriverCommand.RaiseCanExecuteChanged();
         refreshInterfacesCommand.RaiseCanExecuteChanged();
         saveReportCommand.RaiseCanExecuteChanged();
+        clearQueueCommand.RaiseCanExecuteChanged();
+        clearSpoolerCommand.RaiseCanExecuteChanged();
+        pauseQueueCommand.RaiseCanExecuteChanged();
+        sendTestPrintCommand.RaiseCanExecuteChanged();
+        changeUsbPortCommand.RaiseCanExecuteChanged();
+        sharePrinterCommand.RaiseCanExecuteChanged();
+        toggleWorkOfflineCommand.RaiseCanExecuteChanged();
+        resumePrintQueueCommand.RaiseCanExecuteChanged();
     }
 
     private bool CanInstallDriver() => !IsScanning;
@@ -595,6 +738,207 @@ public sealed class MainViewModel : ObservableObject
 
     private static string Clip(string s, int max) => s.Length <= max ? s : s[..max];
 
+    private async Task ClearQueueAsync()
+    {
+        var ip = selectedDevice?.IpAddress;
+        var target = ip is not null ? $"impressora {ip}" : "todas as impressoras";
+
+        var confirm = MessageBox.Show(
+            $"Deseja limpar a fila de impressão de {target}?\n\nTodos os trabalhos pendentes serão cancelados.",
+            "Limpar Fila",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+        if (confirm != MessageBoxResult.Yes) return;
+
+        StatusMessage = "Limpando fila de impressão...";
+        await printerWindowsService.ClearPrintQueueAsync(ip);
+        StatusMessage = $"Fila limpa: {target}.";
+    }
+
+    private async Task ClearSpoolerAsync()
+    {
+        var confirm = MessageBox.Show(
+            "Deseja limpar o Spooler de impressão?\n\n" +
+            "Isso vai parar o serviço Spooler, apagar todos os arquivos de fila e reiniciá-lo.\n" +
+            "Uma janela de confirmação de administrador (UAC) será exibida.",
+            "Limpar Spooler",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+        if (confirm != MessageBoxResult.Yes) return;
+
+        StatusMessage = "Aguardando limpeza do Spooler...";
+        await printerWindowsService.ClearSpoolerAsync();
+        StatusMessage = "Spooler reiniciado.";
+    }
+
+    private async Task TogglePauseQueueAsync()
+    {
+        if (selectedDevice is null) return;
+
+        StatusMessage = $"Alternando fila de {selectedDevice.IpAddress}...";
+        var result = await printerWindowsService.TogglePauseQueueAsync(selectedDevice.IpAddress);
+
+        StatusMessage = result switch
+        {
+            true  => $"Fila pausada: {selectedDevice.IpAddress}.",
+            false => $"Fila retomada: {selectedDevice.IpAddress}.",
+            null  => $"Impressora {selectedDevice.IpAddress} não encontrada nas filas instaladas."
+        };
+    }
+
+    private async Task SendTestPrintAsync()
+    {
+        if (selectedDevice is null) return;
+
+        var confirm = MessageBox.Show(
+            $"Enviar página de teste para {selectedDevice.DeviceName} ({selectedDevice.IpAddress})?",
+            "Impressão de Teste",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+        if (confirm != MessageBoxResult.Yes) return;
+
+        StatusMessage = $"Enviando página de teste para {selectedDevice.IpAddress}...";
+
+        // Tenta ESC/POS direto via TCP 9100 (não requer driver instalado)
+        var ok = await printerIpService.SendDirectTestPageAsync(
+            selectedDevice.IpAddress,
+            selectedDevice.DeviceName ?? "",
+            selectedDevice.SubnetMask ?? "",
+            selectedDevice.Gateway ?? "");
+
+        if (ok)
+        {
+            StatusMessage = $"Impressão de teste enviada para {selectedDevice.IpAddress}.";
+        }
+        else
+        {
+            // Fallback: página de teste via Windows (requer driver instalado)
+            await printerWindowsService.SendTestPageAsync(selectedDevice.IpAddress);
+            StatusMessage = $"Impressão de teste enviada para {selectedDevice.IpAddress} (via Windows).";
+        }
+    }
+
+    private async Task SharePrinterAsync()
+    {
+        if (selectedDevice is null) return;
+
+        StatusMessage = $"Alterando compartilhamento de {selectedDevice.IpAddress}...";
+        var result = await printerWindowsService.ToggleSharePrinterAsync(selectedDevice.IpAddress);
+
+        if (result is null)
+        {
+            // Driver não instalado — abre diálogo de aviso com atalho para Utilitários
+            var dlg = new Views.DriverRequiredDialog
+            {
+                Owner = Application.Current.MainWindow,
+                WindowStartupLocation = System.Windows.WindowStartupLocation.CenterOwner
+            };
+            StatusMessage = $"Impressora {selectedDevice.IpAddress} nao encontrada — driver necessario.";
+            if (dlg.ShowDialog() == true)
+                await InstallDriverAsync();
+            return;
+        }
+
+        StatusMessage = result == true
+            ? $"Impressora {selectedDevice.IpAddress} compartilhada na rede."
+            : $"Compartilhamento removido de {selectedDevice.IpAddress}.";
+    }
+
+    // ── Impressoras instaladas (USB + rede) ───────────────────────────────────
+    private async Task ScanInstalledPrintersAsync()
+    {
+        // USB: substituição direta (porta USB é chave única)
+        var usbPrinters = await printerWindowsService.GetUsbPrintersAsync();
+        foreach (var d in usbPrinters)
+            Application.Current.Dispatcher.Invoke(() => UpsertDevice(d));
+
+        // Rede instalada: merge — se IP já existe na lista, enriquece sem substituir
+        var netPrinters = await printerWindowsService.GetInstalledNetworkPrintersAsync();
+        foreach (var d in netPrinters)
+            Application.Current.Dispatcher.Invoke(() => UpsertInstalledNetworkDevice(d));
+    }
+
+    private void UpsertInstalledNetworkDevice(PrinterDevice installed)
+    {
+        var existing = devices.FirstOrDefault(d =>
+            string.Equals(d.IpAddress, installed.IpAddress, StringComparison.OrdinalIgnoreCase));
+
+        if (existing is not null)
+        {
+            // Apenas enriquece os campos de instalação; preserva dados do scan de rede
+            existing.IsInstalled          = true;
+            existing.InstalledPrinterName = installed.InstalledPrinterName;
+            existing.WorkOffline          = installed.WorkOffline;
+            existing.QueuePaused          = installed.QueuePaused;
+            if (string.IsNullOrWhiteSpace(existing.SysDescription) && !string.IsNullOrWhiteSpace(installed.SysDescription))
+                existing.SysDescription = installed.SysDescription;
+        }
+        else
+        {
+            // IP não encontrado pelo scan — adiciona como entrada nova
+            installed.PropertyChanged += OnDevicePropertyChanged;
+            devices.Add(installed);
+            ResortDevices();
+            RefreshExportState();
+        }
+    }
+
+    private async Task ToggleWorkOfflineAsync()
+    {
+        if (selectedDevice is null || string.IsNullOrEmpty(selectedDevice.InstalledPrinterName)) return;
+
+        bool newState = !selectedDevice.WorkOffline;
+        StatusMessage = $"Alterando modo offline de {selectedDevice.DeviceName}...";
+        var ok = await printerWindowsService.SetWorkOfflineAsync(selectedDevice.InstalledPrinterName, newState);
+        if (ok)
+        {
+            selectedDevice.WorkOffline = newState;
+            StatusMessage = newState
+                ? $"{selectedDevice.DeviceName} definida como offline."
+                : $"{selectedDevice.DeviceName} voltou ao modo online.";
+        }
+        else
+        {
+            StatusMessage = $"Nao foi possivel alterar o modo offline de {selectedDevice.DeviceName}.";
+        }
+    }
+
+    private async Task ResumePrintQueueSelectedAsync()
+    {
+        if (selectedDevice is null || !selectedDevice.QueuePaused) return;
+
+        StatusMessage = $"Retomando fila de {selectedDevice.DeviceName}...";
+        if (!string.IsNullOrEmpty(selectedDevice.InstalledPrinterName))
+            await printerWindowsService.ResumePrintQueueByNameAsync(selectedDevice.InstalledPrinterName);
+        else
+            await printerWindowsService.TogglePauseQueueAsync(selectedDevice.IpAddress);
+
+        selectedDevice.QueuePaused = false;
+        StatusMessage = $"Fila retomada: {selectedDevice.DeviceName}.";
+    }
+
+    private async Task ChangeUsbPortAsync()
+    {
+        if (selectedDevice?.IsUsbDevice != true) return;
+
+        var dlg = new Views.ChangeUsbPortDialog(
+            selectedDevice.DeviceName,
+            selectedDevice.IpAddress,
+            printerWindowsService)
+        {
+            Owner = Application.Current.MainWindow,
+            WindowStartupLocation = System.Windows.WindowStartupLocation.CenterOwner
+        };
+
+        if (dlg.ShowDialog() == true)
+        {
+            // Atualiza a porta exibida na lista e re-faz scan USB
+            StatusMessage = "Porta USB alterada. Atualizando lista...";
+            await ScanInstalledPrintersAsync();
+            StatusMessage = "Lista USB atualizada.";
+        }
+    }
+
     private void ToggleDarkMode()
     {
         IsDarkMode = !IsDarkMode;
@@ -640,7 +984,10 @@ public sealed class MainViewModel : ObservableObject
             selectedDevice.IpAddress,
             selectedDevice.SubnetMask ?? string.Empty,
             selectedDevice.Gateway ?? string.Empty,
-            printerIpService)
+            selectedDevice.MacAddress ?? string.Empty,
+            printerIpService,
+            selectedDevice.DeviceName ?? string.Empty,
+            selectedDevice.SysDescription ?? string.Empty)
         {
             Owner = Application.Current.MainWindow
         };

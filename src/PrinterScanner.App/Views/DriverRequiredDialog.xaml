@@ -1,0 +1,54 @@
+<Window x:Class="PrinterScanner.App.Views.DriverRequiredDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Driver nao instalado"
+        Width="420" SizeToContent="Height"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        Background="#F0F3F7">
+
+  <Window.Resources>
+    <Style TargetType="Button">
+      <Setter Property="Height"           Value="34" />
+      <Setter Property="MinWidth"         Value="110" />
+      <Setter Property="FontSize"         Value="13" />
+      <Setter Property="BorderThickness"  Value="1" />
+      <Setter Property="Cursor"           Value="Hand" />
+    </Style>
+  </Window.Resources>
+
+  <StackPanel Margin="20">
+
+    <!-- Cabeçalho de aviso -->
+    <Border Padding="14,12" Background="#FFF3E0"
+            BorderBrush="#FFB74D" BorderThickness="1"
+            Margin="0,0,0,16">
+      <StackPanel>
+        <TextBlock FontSize="14" FontWeight="SemiBold" Foreground="#E65100"
+                   Text="Driver nao encontrado" />
+        <TextBlock Margin="0,8,0,0" Foreground="#5D4037" FontSize="12"
+                   TextWrapping="Wrap">
+          A impressora selecionada <Bold>nao esta instalada</Bold> neste computador.
+          Para compartilhar na rede e necessario ter o driver instalado primeiro.
+        </TextBlock>
+        <TextBlock Margin="0,8,0,0" Foreground="#5D4037" FontSize="12"
+                   TextWrapping="Wrap"
+                   Text="Deseja abrir os Utilitarios para instalar o driver agora?" />
+      </StackPanel>
+    </Border>
+
+    <!-- Botões -->
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+      <Button Content="Cancelar"
+              Click="Cancel_Click"
+              Background="#FFFFFF" Foreground="#44515E"
+              BorderBrush="#C7D0DA"
+              Margin="0,0,10,0" />
+      <Button Content="Instalar Driver"
+              Click="OpenUtils_Click"
+              Background="#1565C0" Foreground="White"
+              BorderBrush="#0D47A1" />
+    </StackPanel>
+
+  </StackPanel>
+</Window>
