@@ -491,6 +491,21 @@
           <DataGrid.Columns>
             <DataGridTextColumn Binding="{Binding IpAddress}"    Header="IP / Porta"                      Width="110" IsReadOnly="True" />
             <DataGridTextColumn Binding="{Binding ConnectionType}" Header="Tipo"                          Width="60"  IsReadOnly="True" />
+            <DataGridTextColumn Binding="{Binding InstalledDisplay}" Header="Instalada" Width="75" IsReadOnly="True">
+              <DataGridTextColumn.ElementStyle>
+                <Style TargetType="TextBlock">
+                  <Setter Property="HorizontalAlignment" Value="Center"/>
+                  <Setter Property="FontWeight" Value="SemiBold"/>
+                  <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+                  <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsInstalled}" Value="True">
+                      <Setter Property="Foreground" Value="#43A047"/>
+                      <Setter Property="ToolTip"    Value="Impressora instalada neste computador"/>
+                    </DataTrigger>
+                  </Style.Triggers>
+                </Style>
+              </DataGridTextColumn.ElementStyle>
+            </DataGridTextColumn>
             <DataGridTextColumn Binding="{Binding DeviceName, UpdateSourceTrigger=PropertyChanged}"
                                 Header="Nome (duplo clique para editar)" Width="220" IsReadOnly="False">
               <DataGridTextColumn.ElementStyle>

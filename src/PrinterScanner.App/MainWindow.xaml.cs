@@ -65,12 +65,12 @@ public partial class MainWindow : Window
                     viewModel.ChangeIpCommand.Execute(null);
                 break;
 
-            case 7: // Offline
+            case 8: // Offline
                 e.Handled = true;
                 viewModel.ToggleWorkOfflineCommand.Execute(null);
                 break;
 
-            case 8: // Fila
+            case 9: // Fila
                 e.Handled = true;
                 viewModel.ResumePrintQueueCommand.Execute(null);
                 break;

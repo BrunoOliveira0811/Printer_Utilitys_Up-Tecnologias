@@ -89,6 +89,7 @@ public sealed class PrinterDevice : INotifyPropertyChanged
     public string DisplaySubnetMask   => string.IsNullOrWhiteSpace(SubnetMask) ? "-" : SubnetMask;
     public string DisplayGateway      => string.IsNullOrWhiteSpace(Gateway) ? "-" : Gateway;
     public string ConnectionType      => IsUsbDevice ? "USB" : "Rede";
+    public string InstalledDisplay    => IsInstalled ? "✓" : string.Empty;
     public string WorkOfflineDisplay  => WorkOffline  ? "Offline"  : string.Empty;
     public string QueuePausedDisplay  => QueuePaused  ? "Pausada"  : string.Empty;
 }
