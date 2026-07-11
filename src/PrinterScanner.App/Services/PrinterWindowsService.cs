@@ -372,6 +372,22 @@ public sealed class PrinterWindowsService
         var tempIps   = subnetPrefixes.Select(p => $"{p}.253").ToList();
         var ipsJoined = string.Join("','", tempIps);
 
+        // Detecta se o adaptador principal usa DHCP antes de elevar privilégios
+        var detectScript = """
+            $addr = Get-NetIPAddress -AddressFamily IPv4 |
+              Where-Object { $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254.*' } |
+              Select-Object -First 1
+            if ($addr) {
+                $iface   = Get-NetIPInterface -InterfaceIndex $addr.InterfaceIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue
+                $adapter = Get-NetAdapter    -InterfaceIndex $addr.InterfaceIndex -ErrorAction SilentlyContinue
+                "$($iface.Dhcp)|$($adapter.Name)"
+            }
+            """;
+        var detectOut  = await RunHiddenPsAndGetOutputAsync(detectScript);
+        var detectParts = detectOut.Trim().Split('|');
+        bool wasDhcp    = detectParts.Length >= 2 && detectParts[0].Trim().Equals("Enabled", StringComparison.OrdinalIgnoreCase);
+        string adapterName = detectParts.Length >= 2 ? detectParts[1].Trim() : string.Empty;
+
         bool ipsAdded = false;
         try
         {
@@ -419,8 +435,12 @@ public sealed class PrinterWindowsService
                 remScript.AppendLine("foreach ($ip in $ips) {");
                 remScript.AppendLine("  Remove-NetIPAddress -IPAddress $ip -Confirm:$false -ErrorAction SilentlyContinue");
                 remScript.AppendLine("}");
-                await RunElevatedPsAsync(remScript.ToString(), timeoutSeconds: 90);
-                onStatus?.Invoke("IPs temporarios removidos.");
+                if (wasDhcp && !string.IsNullOrWhiteSpace(adapterName))
+                {
+                    remScript.AppendLine($"ipconfig /renew \"{adapterName}\"");
+                }
+                await RunElevatedPsAsync(remScript.ToString(), timeoutSeconds: 120);
+                onStatus?.Invoke(wasDhcp ? "IPs temporarios removidos. DHCP renovado." : "IPs temporarios removidos.");
             }
         }
     }
