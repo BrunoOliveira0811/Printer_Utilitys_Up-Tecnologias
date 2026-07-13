@@ -105,6 +105,7 @@ public sealed class MainViewModel : ObservableObject
     }
 
     public ICollectionView DevicesView { get; }
+    public ObservableCollection<string> BuscaAmpliadaLog { get; } = new();
     public IEnumerable<NetworkInterfaceInfo> AvailableInterfaces => availableInterfaces;
 
     public bool HasAnyOfflinePrinter => devices.Any(d => d.WorkOffline);
@@ -339,22 +340,30 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
+    private void AddBuscaLog(string msg)
+    {
+        var line = $"[{DateTime.Now:HH:mm:ss}] {msg}";
+        Application.Current.Dispatcher.Invoke(() => BuscaAmpliadaLog.Add(line));
+        StatusMessage = msg;
+    }
+
     public async Task BroadcastScanAsync()
     {
         if (IsScanning) return;
 
         try
         {
+            Application.Current.Dispatcher.Invoke(() => BuscaAmpliadaLog.Clear());
             IsScanning = true;
             scanCancellationSource = new CancellationTokenSource();
             ProgressValue = 0;
             ProgressText = "0%";
-            StatusMessage = "Iniciando busca ampliada (ARP + broadcast UDP)...";
+            AddBuscaLog("Iniciando busca ampliada (ARP + broadcast UDP)...");
 
             currentSettings.SnmpCommunities = ParseCommunities(SnmpCommunitiesText);
             var communities = currentSettings.SnmpCommunities;
 
-            var statusProg = new Progress<string>(msg => StatusMessage = msg);
+            var statusProg = new Progress<string>(msg => AddBuscaLog(msg));
             var progressProg = new Progress<double>(pct =>
             {
                 ProgressValue = pct;
@@ -376,7 +385,7 @@ public sealed class MainViewModel : ObservableObject
                           && u.Address.ToString().EndsWith(".253"));
             if (orphanCheck)
             {
-                StatusMessage = "Limpando IPs temporarios de execucoes anteriores...";
+                AddBuscaLog("Limpando IPs temporarios de execucoes anteriores...");
                 await printerWindowsService.CleanupOrphanedSubnetIpsAsync();
             }
 
@@ -384,29 +393,31 @@ public sealed class MainViewModel : ObservableObject
             var unreachable = NetworkScannerService.GetUnreachableAdjacentSubnetPrefixes();
             if (unreachable.Count > 0)
             {
+                AddBuscaLog($"Detectadas {unreachable.Count} sub-rede(s) sem rota local. Adicionando IPs temporarios...");
                 await printerWindowsService.RunWithTemporarySubnetIpsAsync(
                     unreachable,
                     RunDiscover,
-                    msg => StatusMessage = msg);
+                    msg => AddBuscaLog(msg));
             }
             else
             {
+                AddBuscaLog("Nenhuma sub-rede adjacente sem rota. Iniciando descoberta...");
                 await RunDiscover();
             }
 
             await ScanInstalledPrintersAsync();
             ProgressValue = 100;
             ProgressText = "100%";
-            StatusMessage = $"Busca ampliada concluida. {devices.Count} impressora(s) na lista.";
+            AddBuscaLog($"Busca ampliada concluida. {devices.Count} impressora(s) na lista.");
         }
         catch (OperationCanceledException)
         {
-            StatusMessage = "Busca ampliada cancelada.";
+            AddBuscaLog("Busca ampliada cancelada. Aguardando restauracao do DHCP...");
         }
         catch (Exception ex)
         {
             logService.LogError("Erro na busca ampliada.", ex);
-            StatusMessage = "Erro na busca ampliada. Consulte o log.";
+            AddBuscaLog("Erro na busca ampliada. Consulte o log.");
         }
         finally
         {

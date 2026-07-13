@@ -171,8 +171,7 @@
 
       <!-- Busca Ampliada -->
       <Button x:Name="BtnBuscaAmpliada" Style="{StaticResource ActionCardStyle}"
-              Click="BtnBuscaAmpliada_Click"
-              Command="{Binding BroadcastScanCommand}">
+              Click="BtnBuscaAmpliada_Click">
         <Grid>
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="6" />
