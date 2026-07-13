@@ -183,7 +183,7 @@ public sealed class PrinterWindowsService
         finally { try { File.Delete(tmp); } catch { } }
     }
 
-    private static async Task<string> RunHiddenPsAndGetOutputAsync(string script)
+    private static async Task<string> RunHiddenPsAndGetOutputAsync(string script, CancellationToken ct = default)
     {
         var tmp = Path.Combine(Path.GetTempPath(), $"ps_{Guid.NewGuid():N}.ps1");
         try
@@ -200,8 +200,9 @@ public sealed class PrinterWindowsService
             };
             using var proc = Process.Start(psi);
             if (proc is null) return string.Empty;
-            var output = await proc.StandardOutput.ReadToEndAsync();
-            await proc.WaitForExitAsync();
+            await using var reg = ct.Register(() => { try { proc.Kill(); } catch { } });
+            var output = await proc.StandardOutput.ReadToEndAsync(ct).ConfigureAwait(false);
+            await proc.WaitForExitAsync(ct).ConfigureAwait(false);
             return output;
         }
         catch { return string.Empty; }
@@ -365,7 +366,8 @@ public sealed class PrinterWindowsService
     public async Task RunWithTemporarySubnetIpsAsync(
         IReadOnlyList<string> subnetPrefixes,
         Func<Task> work,
-        Action<string>? onStatus = null)
+        Action<string>? onStatus = null,
+        CancellationToken ct = default)
     {
         if (subnetPrefixes.Count == 0) { await work(); return; }
 
@@ -383,7 +385,7 @@ public sealed class PrinterWindowsService
                 "$($iface.Dhcp)|$($adapter.Name)"
             }
             """;
-        var detectOut  = await RunHiddenPsAndGetOutputAsync(detectScript);
+        var detectOut  = await RunHiddenPsAndGetOutputAsync(detectScript, ct);
         var detectParts = detectOut.Trim().Split('|');
         bool wasDhcp    = detectParts.Length >= 2 && detectParts[0].Trim().Equals("Enabled", StringComparison.OrdinalIgnoreCase);
         string adapterName = detectParts.Length >= 2 ? detectParts[1].Trim() : string.Empty;
@@ -410,7 +412,8 @@ public sealed class PrinterWindowsService
             addScript.AppendLine("  try { New-NetIPAddress -InterfaceIndex $iface.InterfaceIndex -IPAddress $ip -PrefixLength 24 -ErrorAction Stop } catch {}");
             addScript.AppendLine("}");
 
-            ipsAdded = await RunElevatedPsAsync(addScript.ToString(), timeoutSeconds: 45);
+            // Passa ct para parar de esperar o UAC se o usuário cancelar
+            ipsAdded = await RunElevatedPsAsync(addScript.ToString(), timeoutSeconds: 45, ct);
 
             if (ipsAdded)
             {
@@ -439,7 +442,9 @@ public sealed class PrinterWindowsService
                 {
                     remScript.AppendLine($"ipconfig /renew \"{adapterName}\"");
                 }
-                await RunElevatedPsAsync(remScript.ToString(), timeoutSeconds: 120);
+                // CancellationToken.None: limpeza e DHCP devem sempre completar,
+                // mesmo quando o usuário cancela a busca
+                await RunElevatedPsAsync(remScript.ToString(), timeoutSeconds: 120, CancellationToken.None);
                 onStatus?.Invoke(wasDhcp ? "IPs temporarios removidos. DHCP renovado." : "IPs temporarios removidos.");
             }
         }
@@ -459,7 +464,9 @@ public sealed class PrinterWindowsService
 
     // Roda um script PS elevado (runas/UAC) e aguarda até timeoutSeconds.
     // Retorna true se o processo saiu com código 0 dentro do tempo limite.
-    private static async Task<bool> RunElevatedPsAsync(string script, int timeoutSeconds = 30)
+    // Processos elevados não podem ser encerrados por Kill() sem privilégio; ao
+    // cancelar apenas paramos de ESPERAR — o processo continua em segundo plano.
+    private static async Task<bool> RunElevatedPsAsync(string script, int timeoutSeconds = 30, CancellationToken ct = default)
     {
         var tmp = Path.Combine(Path.GetTempPath(), $"ps_elev_{Guid.NewGuid():N}.ps1");
         try
@@ -473,10 +480,13 @@ public sealed class PrinterWindowsService
                 UseShellExecute = true
             });
             if (proc is null) return false;
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
+            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
+            using var linkedCts  = ct.CanBeCanceled
+                ? CancellationTokenSource.CreateLinkedTokenSource(timeoutCts.Token, ct)
+                : timeoutCts;
             try
             {
-                await proc.WaitForExitAsync(cts.Token);
+                await proc.WaitForExitAsync(linkedCts.Token).ConfigureAwait(false);
                 return proc.ExitCode == 0;
             }
             catch { return false; }

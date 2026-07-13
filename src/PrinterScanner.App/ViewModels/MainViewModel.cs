@@ -397,7 +397,8 @@ public sealed class MainViewModel : ObservableObject
                 await printerWindowsService.RunWithTemporarySubnetIpsAsync(
                     unreachable,
                     RunDiscover,
-                    msg => AddBuscaLog(msg));
+                    msg => AddBuscaLog(msg),
+                    scanCancellationSource.Token);
             }
             else
             {
