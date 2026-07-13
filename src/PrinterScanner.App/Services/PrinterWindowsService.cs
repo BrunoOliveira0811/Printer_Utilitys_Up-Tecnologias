@@ -200,9 +200,12 @@ public sealed class PrinterWindowsService
             };
             using var proc = Process.Start(psi);
             if (proc is null) return string.Empty;
-            await using var reg = ct.Register(() => { try { proc.Kill(); } catch { } });
-            var output = await proc.StandardOutput.ReadToEndAsync(ct).ConfigureAwait(false);
-            await proc.WaitForExitAsync(ct).ConfigureAwait(false);
+            // Mata o processo quando ct for cancelado; a leitura da stdout
+            // completa naturalmente após o processo morrer (sem passar ct ao Read,
+            // o que evitaria exceções imprevisíveis durante a leitura parcial).
+            using var reg = ct.Register(() => { try { if (!proc.HasExited) proc.Kill(); } catch { } });
+            var output = await proc.StandardOutput.ReadToEndAsync().ConfigureAwait(false);
+            await proc.WaitForExitAsync().ConfigureAwait(false);
             return output;
         }
         catch { return string.Empty; }
@@ -390,7 +393,7 @@ public sealed class PrinterWindowsService
         bool wasDhcp    = detectParts.Length >= 2 && detectParts[0].Trim().Equals("Enabled", StringComparison.OrdinalIgnoreCase);
         string adapterName = detectParts.Length >= 2 ? detectParts[1].Trim() : string.Empty;
 
-        bool ipsAdded = false;
+        bool cleanupNeeded = false;
         try
         {
             onStatus?.Invoke(
@@ -412,14 +415,17 @@ public sealed class PrinterWindowsService
             addScript.AppendLine("  try { New-NetIPAddress -InterfaceIndex $iface.InterfaceIndex -IPAddress $ip -PrefixLength 24 -ErrorAction Stop } catch {}");
             addScript.AppendLine("}");
 
-            // Passa ct para parar de esperar o UAC se o usuário cancelar
-            ipsAdded = await RunElevatedPsAsync(addScript.ToString(), timeoutSeconds: 45, ct);
+            // Não passa ct: o UAC sempre completa para evitar o cenário em que
+            // o processo adiciona os IPs mas paramos de esperar (ipsAdded ficaria
+            // false e o finally pularia a remoção, deixando a rede suja).
+            bool ipsAdded = await RunElevatedPsAsync(addScript.ToString(), timeoutSeconds: 45);
+            cleanupNeeded = true; // a partir daqui sempre limpamos, mesmo que ipsAdded=false
 
             if (ipsAdded)
             {
                 // Aguarda DAD (Duplicate Address Detection) completar para todos os IPs
                 onStatus?.Invoke("IPs temporarios adicionados. Aguardando ativacao (5 s)...");
-                await Task.Delay(5000);
+                await Task.Delay(5000, ct).ConfigureAwait(false);
             }
             else
             {
@@ -430,20 +436,20 @@ public sealed class PrinterWindowsService
         }
         finally
         {
-            if (ipsAdded)
+            if (cleanupNeeded)
             {
                 onStatus?.Invoke("Removendo IPs temporarios — aguarde o UAC...");
                 var remScript = new StringBuilder();
-                remScript.AppendLine($"$ips = @('{ipsJoined}')");
-                remScript.AppendLine("foreach ($ip in $ips) {");
-                remScript.AppendLine("  Remove-NetIPAddress -IPAddress $ip -Confirm:$false -ErrorAction SilentlyContinue");
-                remScript.AppendLine("}");
+                // Remove TODOS os .253/24 — cobre o caso em que o processo elevado
+                // adicionou IPs mas paramos de esperar (ipsAdded ficaria false).
+                remScript.AppendLine("Get-NetIPAddress -AddressFamily IPv4 |");
+                remScript.AppendLine("  Where-Object { $_.IPAddress -match '\\.253$' -and $_.PrefixLength -eq 24 } |");
+                remScript.AppendLine("  Remove-NetIPAddress -Confirm:$false -ErrorAction SilentlyContinue");
                 if (wasDhcp && !string.IsNullOrWhiteSpace(adapterName))
                 {
                     remScript.AppendLine($"ipconfig /renew \"{adapterName}\"");
                 }
-                // CancellationToken.None: limpeza e DHCP devem sempre completar,
-                // mesmo quando o usuário cancela a busca
+                // CancellationToken.None: limpeza e DHCP devem sempre completar
                 await RunElevatedPsAsync(remScript.ToString(), timeoutSeconds: 120, CancellationToken.None);
                 onStatus?.Invoke(wasDhcp ? "IPs temporarios removidos. DHCP renovado." : "IPs temporarios removidos.");
             }
