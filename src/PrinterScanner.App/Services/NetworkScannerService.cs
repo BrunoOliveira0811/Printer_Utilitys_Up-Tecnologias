@@ -738,20 +738,12 @@ public sealed class NetworkScannerService
                 if (p0 == 127) continue;
                 own.Add($"{p0}.{p1}.{p2}"); // marca sub-rede atual
 
-                // Para 192.168.x.y: varre 0-9 (sub-redes comuns) + p2±10 (vizinhança do PC)
-                // Para 10.a.b.c: varre 10.a.b-3..b+3.1-254 (exceto própria)
+                // Vizinhança ±3: cobre casos comuns mantendo o scan viável em tempo razoável
                 IEnumerable<int> thirds;
                 if (p0 == 192 && p1 == 168)
-                {
-                    var set = new HashSet<int>(Enumerable.Range(0, 10));
-                    for (int i = Math.Max(0, p2 - 10); i <= Math.Min(254, p2 + 10); i++)
-                        set.Add(i);
-                    thirds = set;
-                }
-                else
-                {
                     thirds = Enumerable.Range(Math.Max(0, p2 - 3), 7);
-                }
+                else
+                    thirds = Enumerable.Range(Math.Max(0, p2 - 2), 5);
 
                 foreach (int c in thirds)
                 {
@@ -762,7 +754,8 @@ public sealed class NetworkScannerService
                 }
             }
         }
-        return result;
+        // Limita a ~1500 IPs para manter Etapa 2 rápida e evitar criação excessiva de tasks
+        return result.Count > 1500 ? result.Take(1500).ToList() : result;
     }
 
     // Retorna prefixos /24 adjacentes que o PC NÃO tem interface local
@@ -791,14 +784,16 @@ public sealed class NetworkScannerService
                 IEnumerable<int> thirds;
                 if (p0 == 192 && p1 == 168)
                 {
-                    var set = new HashSet<int>(Enumerable.Range(0, 10));
-                    for (int i = Math.Max(0, p2 - 10); i <= Math.Min(254, p2 + 10); i++)
+                    // Vizinhança próxima ±3: cobre os casos mais comuns sem gerar
+                    // dezenas de IPs temporários que desestabilizam o adaptador.
+                    var set = new HashSet<int>();
+                    for (int i = Math.Max(0, p2 - 3); i <= Math.Min(254, p2 + 3); i++)
                         set.Add(i);
                     thirds = set;
                 }
                 else
                 {
-                    thirds = Enumerable.Range(Math.Max(0, p2 - 3), 7);
+                    thirds = Enumerable.Range(Math.Max(0, p2 - 2), 5);
                 }
 
                 foreach (int c in thirds)
@@ -809,7 +804,11 @@ public sealed class NetworkScannerService
             }
         }
 
-        return candidatePrefixes.Where(p => !localPrefixes.Contains(p)).ToList();
+        // Limita a 8 sub-redes para não sobrecarregar o adaptador com IPs temporários
+        return candidatePrefixes
+            .Where(p => !localPrefixes.Contains(p))
+            .Take(8)
+            .ToList();
     }
 
     // Lê TODOS os IPs da tabela ARP do Windows (arp -a)

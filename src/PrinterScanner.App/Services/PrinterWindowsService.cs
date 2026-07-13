@@ -377,21 +377,28 @@ public sealed class PrinterWindowsService
         var tempIps   = subnetPrefixes.Select(p => $"{p}.253").ToList();
         var ipsJoined = string.Join("','", tempIps);
 
-        // Detecta se o adaptador principal usa DHCP antes de elevar privilégios
+        // Detecta se o adaptador principal usa DHCP antes de elevar privilégios.
+        // PrefixOrigin -ne 'Manual' exclui IPs estáticos adicionados manualmente
+        // (inclusive .253 de execuções anteriores) para obter o IP real do adaptador.
         var detectScript = """
             $addr = Get-NetIPAddress -AddressFamily IPv4 |
-              Where-Object { $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254.*' } |
+              Where-Object {
+                  $_.IPAddress -notlike '127.*' -and
+                  $_.IPAddress -notlike '169.254.*' -and
+                  $_.PrefixOrigin -ne 'Manual'
+              } |
               Select-Object -First 1
             if ($addr) {
                 $iface   = Get-NetIPInterface -InterfaceIndex $addr.InterfaceIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue
                 $adapter = Get-NetAdapter    -InterfaceIndex $addr.InterfaceIndex -ErrorAction SilentlyContinue
-                "$($iface.Dhcp)|$($adapter.Name)"
+                "$($iface.Dhcp)|$($adapter.Name)|$($addr.InterfaceIndex)"
             }
             """;
-        var detectOut  = await RunHiddenPsAndGetOutputAsync(detectScript, ct);
+        var detectOut   = await RunHiddenPsAndGetOutputAsync(detectScript, ct);
         var detectParts = detectOut.Trim().Split('|');
-        bool wasDhcp    = detectParts.Length >= 2 && detectParts[0].Trim().Equals("Enabled", StringComparison.OrdinalIgnoreCase);
+        bool wasDhcp      = detectParts.Length >= 2 && detectParts[0].Trim().Equals("Enabled", StringComparison.OrdinalIgnoreCase);
         string adapterName = detectParts.Length >= 2 ? detectParts[1].Trim() : string.Empty;
+        int ifaceIndex    = detectParts.Length >= 3 && int.TryParse(detectParts[2].Trim(), out var parsedIdx) ? parsedIdx : -1;
 
         bool cleanupNeeded = false;
         try
@@ -440,15 +447,25 @@ public sealed class PrinterWindowsService
             {
                 onStatus?.Invoke("Removendo IPs temporarios — aguarde o UAC...");
                 var remScript = new StringBuilder();
-                // Remove TODOS os .253/24 — cobre o caso em que o processo elevado
-                // adicionou IPs mas paramos de esperar (ipsAdded ficaria false).
-                remScript.AppendLine("Get-NetIPAddress -AddressFamily IPv4 |");
-                remScript.AppendLine("  Where-Object { $_.IPAddress -match '\\.253$' -and $_.PrefixLength -eq 24 } |");
-                remScript.AppendLine("  Remove-NetIPAddress -Confirm:$false -ErrorAction SilentlyContinue");
+
+                // Remove SOMENTE os IPs que nós adicionamos.
+                // NÃO usar curinga: risco de remover o IP real do usuário se
+                // o endereço DHCP dele terminar em .253.
+                remScript.AppendLine($"$ips = @('{ipsJoined}')");
+                remScript.AppendLine("foreach ($ip in $ips) {");
+                remScript.AppendLine("  Remove-NetIPAddress -IPAddress $ip -Confirm:$false -ErrorAction SilentlyContinue");
+                remScript.AppendLine("}");
+
                 if (wasDhcp && !string.IsNullOrWhiteSpace(adapterName))
                 {
+                    // Set-NetIPInterface -Dhcp Enabled: necessário porque o Windows
+                    // pode ter alterado o adaptador para modo estático ao adicionar
+                    // IPs manuais. Sem isso, ipconfig /renew não obtém novo endereço.
+                    if (ifaceIndex > 0)
+                        remScript.AppendLine($"Set-NetIPInterface -InterfaceIndex {ifaceIndex} -Dhcp Enabled -ErrorAction SilentlyContinue");
                     remScript.AppendLine($"ipconfig /renew \"{adapterName}\"");
                 }
+
                 // CancellationToken.None: limpeza e DHCP devem sempre completar
                 await RunElevatedPsAsync(remScript.ToString(), timeoutSeconds: 120, CancellationToken.None);
                 onStatus?.Invoke(wasDhcp ? "IPs temporarios removidos. DHCP renovado." : "IPs temporarios removidos.");
