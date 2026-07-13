@@ -27,7 +27,14 @@ public partial class BuscaAmpliadaWindow : Window
     private void OnLogChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         if (e.Action == NotifyCollectionChangedAction.Add)
-            LogList.ScrollIntoView(LogList.Items[LogList.Items.Count - 1]);
+            // BeginInvoke adia o scroll para o próximo frame, quebrando o ciclo
+            // de reentrância: CollectionChanged → ScrollIntoView → UpdateLayout
+            // → dispatcher processa próximo Invoke → CollectionChanged → ...
+            Dispatcher.BeginInvoke(() =>
+            {
+                if (LogList.Items.Count > 0)
+                    LogList.ScrollIntoView(LogList.Items[LogList.Items.Count - 1]);
+            });
     }
 
     private void BtnBuscarNovamente_Click(object sender, RoutedEventArgs e)

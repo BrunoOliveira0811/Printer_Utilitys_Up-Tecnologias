@@ -343,8 +343,13 @@ public sealed class MainViewModel : ObservableObject
     private void AddBuscaLog(string msg)
     {
         var line = $"[{DateTime.Now:HH:mm:ss}] {msg}";
-        Application.Current.Dispatcher.Invoke(() => BuscaAmpliadaLog.Add(line));
-        StatusMessage = msg;
+        // BeginInvoke (async) evita bloquear threads do pool e impede reentrância
+        // do dispatcher quando chamado de dentro de handlers de layout do WPF.
+        Application.Current.Dispatcher.BeginInvoke(() =>
+        {
+            BuscaAmpliadaLog.Add(line);
+            StatusMessage = msg;
+        });
     }
 
     public async Task BroadcastScanAsync()
