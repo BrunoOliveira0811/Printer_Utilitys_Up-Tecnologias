@@ -58,6 +58,7 @@ public sealed class MainViewModel : ObservableObject
     private double progressValue;
     private string progressText = "0%";
     private bool isScanning;
+    private bool useTemporaryIpForScan;
 
     public MainViewModel(
         SettingsService settingsService,
@@ -175,8 +176,25 @@ public sealed class MainViewModel : ObservableObject
     public ScanMode SelectedScanMode
     {
         get => selectedScanMode;
-        set => SetProperty(ref selectedScanMode, value);
+        set
+        {
+            if (SetProperty(ref selectedScanMode, value))
+            {
+                UseTemporaryIpForScan = false;
+                RaisePropertyChanged(nameof(ShowTemporaryIpOption));
+            }
+        }
     }
+
+    public bool UseTemporaryIpForScan
+    {
+        get => useTemporaryIpForScan;
+        set => SetProperty(ref useTemporaryIpForScan, value);
+    }
+
+    // Visível apenas nos modos que permitem especificar uma faixa de destino
+    public bool ShowTemporaryIpOption =>
+        selectedScanMode is ScanMode.FaixaManual or ScanMode.Cidr;
 
     public string StartIp
     {
@@ -298,11 +316,34 @@ public sealed class MainViewModel : ObservableObject
                 StatusMessage = $"Varrendo {info.CurrentIp} ({info.ProcessedCount}/{info.TotalCount})";
             });
 
-            await networkScannerService.ScanAsync(
+            Task RunScan() => networkScannerService.ScanAsync(
                 request,
                 progress,
                 device => Application.Current.Dispatcher.Invoke(() => UpsertDevice(device)),
                 scanCancellationSource.Token);
+
+            if (UseTemporaryIpForScan &&
+                SelectedScanMode is ScanMode.FaixaManual or ScanMode.Cidr)
+            {
+                var prefix = GetTargetSubnetPrefixIfUnreachable();
+                if (prefix is not null)
+                {
+                    await printerWindowsService.RunWithTemporarySubnetIpsAsync(
+                        new[] { prefix },
+                        RunScan,
+                        msg => StatusMessage = msg,
+                        scanCancellationSource.Token);
+                }
+                else
+                {
+                    StatusMessage = "Sub-rede ja acessivel. Iniciando varredura direta...";
+                    await RunScan();
+                }
+            }
+            else
+            {
+                await RunScan();
+            }
 
             await ScanInstalledPrintersAsync();
             StatusMessage = $"Varredura concluida. {devices.Count} impressora(s) encontrada(s).";
@@ -688,6 +729,33 @@ public sealed class MainViewModel : ObservableObject
         sharePrinterCommand.RaiseCanExecuteChanged();
         toggleWorkOfflineCommand.RaiseCanExecuteChanged();
         resumePrintQueueCommand.RaiseCanExecuteChanged();
+    }
+
+    // Retorna o prefixo /24 da faixa-alvo se a máquina NÃO tem IP nessa sub-rede.
+    // Retorna null se o destino já é acessível (IP temporário desnecessário).
+    private string? GetTargetSubnetPrefixIfUnreachable()
+    {
+        string? ipStr = SelectedScanMode switch
+        {
+            ScanMode.FaixaManual when !string.IsNullOrWhiteSpace(StartIp) => StartIp.Trim(),
+            ScanMode.Cidr        when !string.IsNullOrWhiteSpace(CidrNotation) => CidrNotation.Split('/')[0].Trim(),
+            _ => null
+        };
+        if (ipStr is null) return null;
+
+        var parts = ipStr.Split('.');
+        if (parts.Length != 4) return null;
+        var prefix = $"{parts[0]}.{parts[1]}.{parts[2]}";
+
+        // Verifica se a máquina já possui um IP nesta sub-rede
+        bool alreadyReachable = System.Net.NetworkInformation.NetworkInterface
+            .GetAllNetworkInterfaces()
+            .Where(ni => ni.OperationalStatus == System.Net.NetworkInformation.OperationalStatus.Up)
+            .SelectMany(ni => ni.GetIPProperties().UnicastAddresses)
+            .Any(ua => ua.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork
+                       && ua.Address.ToString().StartsWith(prefix + "."));
+
+        return alreadyReachable ? null : prefix;
     }
 
     private bool CanInstallDriver() => !IsScanning;
